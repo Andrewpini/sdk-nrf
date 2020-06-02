@@ -6,8 +6,7 @@
 
 cmake_minimum_required(VERSION 3.8.2)
 
-include($ENV{ZEPHYR_BASE}/cmake/app/boilerplate.cmake NO_POLICY_SCOPE)
-include($ENV{ZEPHYR_BASE}/../nrf/cmake/boilerplate.cmake)
+find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(https_client)
 
 target_sources(app PRIVATE src/main.c)

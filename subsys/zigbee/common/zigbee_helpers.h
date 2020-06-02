@@ -209,6 +209,22 @@ void zigbee_led_status_update(zb_bufid_t bufid, u32_t led_idx);
  */
 #if defined ZB_ED_ROLE
 void user_input_indicate(void);
+
+/**@brief Function for enabling sleepy behavior of End Device. Must be called
+ *        before zigbee_enable() is called. Also must be called after ZB_INIT(),
+ *        which is called when the system is initializing.
+ *
+ * @note This function is to be used with End Devices only.
+ *
+ * @param[in] enable   Boolean value indicating if sleepy behavior
+ *                     should be enabled or disabled.
+ */
+void zigbee_configure_sleepy_behavior(bool enable);
 #endif
+
+/**@brief Function for powering down unused RAM. Powers down all unused sections
+ * in RAM banks.
+ */
+void zigbee_power_down_unused_ram(void);
 
 #endif /* ZIGBEE_HELPERS_H__ */

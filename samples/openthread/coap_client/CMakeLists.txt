@@ -10,11 +10,14 @@ set(NRF_SUPPORTED_BOARDS
 	nrf52833dk_nrf52833
 )
 
-find_package(Zephyr HINTS $ENV{ZEPHYR_BASE})
+find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(openthread_coap_client)
 
-FILE(GLOB app_sources src/*.c)
-target_sources(app PRIVATE ${app_sources})
 
-target_include_directories(app PRIVATE ../coap_server/interface)
+target_sources(app PRIVATE src/coap_client.c
+			   src/coap_client_utils.c)
+
+target_sources_ifdef(CONFIG_BT app PRIVATE src/ble_utils.c)
+
+target_include_directories(app PUBLIC ../coap_interface)

@@ -18,6 +18,7 @@
 /applications/asset_tracker/              @jhn-nordic @jtguggedal @rlubos
 /applications/connectivity_bridge/        @jtguggedal @nordic-auko
 /applications/nrf_desktop/                @pdunaj
+/applications/serial_lte_modem/           @junqingzou @lats1980 @rlubos
 # Boards
 /boards/                                  @ioannisg @anangl
 # All cmake related files
@@ -85,6 +86,8 @@ Kconfig*                                  @tejlmand
 /samples/mpsl/**/*.rst                    @b-gent
 /samples/nfc/                             @grochu
 /samples/nfc/**/README.rst                @b-gent
+/samples/nrf5340/empty_app_core/          @doki-nordic
+/samples/nrf5340/**/README.rst            @b-gent
 /samples/nrf9160/                         @rlubos @lemrey
 /samples/nrf9160/spm/                     @lemrey @hakonfam @ioannisg
 /samples/openthread/                      @MarekPorwisz @lmaciejonczyk
@@ -98,6 +101,7 @@ Kconfig*                                  @tejlmand
 /samples/CMakeLists.txt                   @tejlmand
 /scripts/                                 @mbolivar @tejlmand
 /scripts/hid_configurator/                @pdunaj
+/share/zephyrbuild-package/               @tejlmand
 /subsys/bluetooth/                        @joerchan @carlescufi
 /subsys/bluetooth/mesh/                   @trond-snekvik @joerchan
 /subsys/bluetooth/controller/             @joerchan @rugeGerritsen

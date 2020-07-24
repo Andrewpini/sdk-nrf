@@ -1,0 +1,9 @@
+sample:
+  name: Bluetooth Mesh Thingy52 Rainbow server
+  description: Bluetooth Mesh Thingy52 Rainbow server
+tests:
+  samples.bluetooth.mesh.thingy52_rainbow_srv:
+    build_only: true
+    build_on_all: true
+    platform_whitelist: thingy52_nrf52832
+    tags: bluetooth ci_build

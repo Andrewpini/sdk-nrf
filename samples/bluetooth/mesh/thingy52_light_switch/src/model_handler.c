@@ -10,13 +10,38 @@
 #include <dk_buttons_and_leds.h>
 #include "model_handler.h"
 #include <thingy52_orientation_handler.h>
+#include <drivers/gpio/gpio_sx1509b.h>
 
+static void button_handler_cb(u32_t pressed, u32_t changed);
 struct button {
 	/** Current light status of the corresponding server. */
 	bool status;
 	/** Generic OnOff client instance for this switch. */
 	struct bt_mesh_onoff_cli client;
 };
+
+struct rgb {
+        uint8_t red;
+        uint8_t green;
+        uint8_t blue;
+};
+
+static const struct rgb colors[15] = {
+        { 0,0,0}, //off
+        { 255,0,0}, //red
+        { 255,15,0}, //orange
+        { 255,255,0}, //light yellow
+        { 0,255,30}, //light green
+        { 0,255,0}, //green
+        { 25,100,55}, //neon teal
+        { 0,255,255}, //teal
+        { 0,0,255}, //blue
+        { 255,0,255}, //light purple
+        { 80,10,45}, //light pink
+        { 255,0,25}, //pink
+        { 255,255,255}, //white
+};
+
 
 static void status_handler(struct bt_mesh_onoff_cli *cli,
 			   struct bt_mesh_msg_ctx *ctx,
@@ -69,35 +94,10 @@ static void send_onoff(uint8_t idx)
 	}
 }
 
-static void button_handler_cb(u32_t pressed, u32_t changed)
-{
-	if ((pressed & changed & BIT(0))) {
-		orientation_t orr = thingy52_orientation_get();
-		printk("Orientation: %d\n", orr);
-		uint8_t idx;
-		switch (orr) {
-		case THINGY_ORIENT_X_UP:
-			idx = 0;
-			break;
-		case THINGY_ORIENT_Y_UP:
-			idx = 1;
-			break;
-		case THINGY_ORIENT_X_DOWN:
-			idx = 2;
-			break;
-		case THINGY_ORIENT_Y_DOWN:
-			idx = 3;
-			break;
-		default:
-			return;
-		}
-		send_onoff(idx);
-	}
-}
-
 static struct button_handler button_handler = {
 	.cb = button_handler_cb,
 };
+
 
 static struct device *io_expander;
 
@@ -108,14 +108,69 @@ static void button_and_led_init(void)
 	io_expander = device_get_binding(DT_PROP(DT_NODELABEL(sx1509b), label));
 	err |= dk_buttons_init(NULL);
 	dk_button_handler_add(&button_handler);
-	err |= gpio_pin_configure(io_expander, GREEN_LED, GPIO_OUTPUT);
-	err |= gpio_pin_configure(io_expander, BLUE_LED, GPIO_OUTPUT);
-	err |= gpio_pin_configure(io_expander, RED_LED, GPIO_OUTPUT);
+        err |= sx1509b_led_drv_init(io_expander);
+        err |= sx1509b_led_drv_pin_init(io_expander, GREEN_LED);
+        err |= sx1509b_led_drv_pin_init(io_expander, BLUE_LED);
+        err |= sx1509b_led_drv_pin_init(io_expander, RED_LED);
 
 	if (err || (io_expander == NULL)) {
 		printk("GPIO configuration failed\n");
 	}
 }
+
+static uint8_t color[3];
+static uint8_t select = 0;
+
+static void button_handler_cb(u32_t pressed, u32_t changed)
+{
+	if ((pressed & changed & BIT(0))) {
+		orientation_t orr = thingy52_orientation_get();
+		printk("Orientation: %d\n", orr);
+		uint8_t idx;
+		switch (orr) {
+		case THINGY_ORIENT_X_UP:
+			if (color[select] == 255) {
+				color[select] = 0;
+			} else {
+				color[select] += 5;
+			}
+			break;
+		case THINGY_ORIENT_X_DOWN:
+			if (color[select] == 0) {
+				color[select] = 255;
+			} else {
+				color[select] -= 5;
+			}
+			break;
+		case THINGY_ORIENT_Y_DOWN:
+		case THINGY_ORIENT_Y_UP:
+                        for (size_t i = 0; i < 3; i++)
+                        {
+                                color[i] = 0;
+                        }
+
+			break;
+		case THINGY_ORIENT_Z_DOWN:
+		case THINGY_ORIENT_Z_UP:
+			select++;
+			if (select == 3) {
+				select = 0;
+			}
+                        printk("Idx: %d\n", select);
+
+			break;
+		default:
+			return;
+		}
+                printk("Red: %d, Green: %d, Blue: %d\n", color[0], color[1], color[2]);
+                sx1509b_set_pwm(io_expander, RED_LED, color[0]);
+                sx1509b_set_pwm(io_expander, GREEN_LED, color[1]);
+                sx1509b_set_pwm(io_expander, BLUE_LED, color[2]);
+	}
+}
+
+
+
 
 static struct k_delayed_work orentiation_led_work;
 
@@ -135,42 +190,48 @@ static void leds_on(bool r, bool g, bool b)
 
 static void orentiation_led(struct k_work *work)
 {
-	orientation_t orr = thingy52_orientation_get();
+        static uint8_t idx;
+        printk("red: %d\n", colors[idx % 13].red);
+        sx1509b_set_pwm(io_expander, RED_LED, colors[idx % 13].red);
+        sx1509b_set_pwm(io_expander, GREEN_LED, colors[idx % 13].green);
+        sx1509b_set_pwm(io_expander, BLUE_LED, colors[idx % 13].blue);
+        idx++;
+	// orientation_t orr = thingy52_orientation_get();
 
-	switch (orr) {
-	case THINGY_ORIENT_X_UP:
-		if (buttons[0].status) {
-			leds_on(0, 1, 1);
-		} else {
-			leds_off();
-		}
-		break;
-	case THINGY_ORIENT_X_DOWN:
-		if (buttons[2].status) {
-			leds_on(1, 0, 1);
-		} else {
-			leds_off();
-		}
-		break;
-	case THINGY_ORIENT_Y_UP:
-		if (buttons[1].status) {
-			leds_on(1, 1, 0);
-		} else {
-			leds_off();
-		}
-		break;
-	case THINGY_ORIENT_Y_DOWN:
-		if (buttons[3].status) {
-			leds_on(0, 1, 0);
-		} else {
-			leds_off();
-		}
-		break;
-	default:
-		leds_off();
-		break;
-	}
-	k_delayed_work_submit(&orentiation_led_work, K_MSEC(100));
+	// switch (orr) {
+	// case THINGY_ORIENT_X_UP:
+	// 	if (buttons[0].status) {
+	// 		leds_on(0, 1, 1);
+	// 	} else {
+	// 		leds_off();
+	// 	}
+	// 	break;
+	// case THINGY_ORIENT_X_DOWN:
+	// 	if (buttons[2].status) {
+	// 		leds_on(1, 0, 1);
+	// 	} else {
+	// 		leds_off();
+	// 	}
+	// 	break;
+	// case THINGY_ORIENT_Y_UP:
+	// 	if (buttons[1].status) {
+	// 		leds_on(1, 1, 0);
+	// 	} else {
+	// 		leds_off();
+	// 	}
+	// 	break;
+	// case THINGY_ORIENT_Y_DOWN:
+	// 	if (buttons[3].status) {
+	// 		leds_on(0, 1, 0);
+	// 	} else {
+	// 		leds_off();
+	// 	}
+	// 	break;
+	// default:
+	// 	leds_off();
+	// 	break;
+	// }
+	k_delayed_work_submit(&orentiation_led_work, K_MSEC(700));
 }
 
 /** Configuration server definition */

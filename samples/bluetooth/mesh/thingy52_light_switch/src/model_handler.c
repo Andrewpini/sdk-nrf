@@ -26,12 +26,12 @@ struct rgb {
         uint8_t blue;
 };
 
-static const struct rgb colors[15] = {
+static const struct rgb colors[13] = {
         { 0,0,0}, //off
         { 255,0,0}, //red
-        { 255,15,0}, //orange
+        { 255,70,0}, //orange
         { 255,255,0}, //light yellow
-        { 0,255,30}, //light green
+        { 0,255,80}, //light green
         { 0,255,0}, //green
         { 25,100,55}, //neon teal
         { 0,255,255}, //teal
@@ -108,7 +108,7 @@ static void button_and_led_init(void)
 	io_expander = device_get_binding(DT_PROP(DT_NODELABEL(sx1509b), label));
 	err |= dk_buttons_init(NULL);
 	dk_button_handler_add(&button_handler);
-        err |= sx1509b_led_drv_init(io_expander);
+        // err |= sx1509b_led_drv_init(io_expander);
         err |= sx1509b_led_drv_pin_init(io_expander, GREEN_LED);
         err |= sx1509b_led_drv_pin_init(io_expander, BLUE_LED);
         err |= sx1509b_led_drv_pin_init(io_expander, RED_LED);

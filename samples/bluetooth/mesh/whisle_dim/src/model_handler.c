@@ -27,6 +27,29 @@ static const int spectrum_size = fft_size / 2;
 static int spectrum[128];
 static int avg_freq;
 
+struct rgb {
+        uint8_t red;
+        uint8_t green;
+        uint8_t blue;
+};
+
+static const struct rgb colors[13] = {
+        { 0,0,0}, //off
+        { 255,0,0}, //red
+        { 255,15,0}, //orange
+        { 255,255,0}, //light yellow
+        { 0,255,30}, //light green
+        { 0,255,0}, //green
+        { 25,100,55}, //neon teal
+        { 0,255,255}, //teal
+        { 0,0,255}, //blue
+        { 255,0,255}, //light purple
+        { 80,10,45}, //light pink
+        { 255,0,25}, //pink
+        { 255,255,255}, //white
+};
+
+
 static struct k_delayed_work microphone_work;
 
 static int nrfx_err_code_check(nrfx_err_t nrfx_err)
@@ -64,8 +87,17 @@ static void microphone_work_handler(struct k_work *work)
 		}
 
 		if (avg_freq) {
-			printk("Average frequency: %d\n", avg_freq);
+			// printk("Average frequency: %d\n", avg_freq);
 		}
+
+                /* Color whistle picker test */
+                uint8_t color_idx = (avg_freq - 500) / 115;
+                printk("color_idx: %d\n", color_idx);
+                sx1509b_set_pwm(io_expander, RED_LED, colors[color_idx].red);
+                sx1509b_set_pwm(io_expander, BLUE_LED, colors[color_idx].blue);
+                sx1509b_set_pwm(io_expander, GREEN_LED, colors[color_idx].green);
+
+
 	}
 
 	k_delayed_work_submit(&microphone_work, K_MSEC(200));
@@ -76,7 +108,8 @@ static void button_handler_cb(u32_t pressed, u32_t changed)
 	int err;
 
 	if ((pressed & BIT(0))) {
-		gpio_port_set_bits_raw(io_expander, BIT(MIC_PWR));
+                sx1509b_gpio_pin_onoff(io_expander, MIC_PWR, 1);
+		// gpio_port_set_bits_raw(io_expander, BIT(MIC_PWR));
 
 		err = nrfx_err_code_check(nrfx_pdm_start());
 
@@ -88,9 +121,9 @@ static void button_handler_cb(u32_t pressed, u32_t changed)
 
 		k_delayed_work_submit(&microphone_work, K_NO_WAIT);
 	} else if ((!pressed & BIT(0))) {
-		gpio_port_set_bits_raw(io_expander, BIT(GREEN_LED) |
-							    BIT(BLUE_LED) |
-							    BIT(RED_LED));
+		// gpio_port_set_bits_raw(io_expander, BIT(GREEN_LED) |
+		// 					    BIT(BLUE_LED) |
+		// 					    BIT(RED_LED));
 
 		k_delayed_work_cancel(&microphone_work);
 
@@ -102,7 +135,8 @@ static void button_handler_cb(u32_t pressed, u32_t changed)
 			printk("PDM stopped\n");
 		}
 
-		gpio_port_clear_bits_raw(io_expander, BIT(MIC_PWR));
+                sx1509b_gpio_pin_onoff(io_expander, MIC_PWR, 0);
+		// gpio_port_clear_bits_raw(io_expander, BIT(MIC_PWR));
 	}
 }
 
@@ -141,7 +175,10 @@ static void button_and_led_init(void)
 	dk_button_handler_add(&button_handler);
 
 	io_expander = device_get_binding(DT_PROP(DT_NODELABEL(sx1509b), label));
-        err |= sx1509b_led_drv_init(io_expander);
+        // err |= sx1509b_led_drv_init(io_expander);
+        // err |= sx1509b_gpio_output_pin_init(io_expander, GREEN_LED);
+        // err |= sx1509b_gpio_output_pin_init(io_expander, BLUE_LED);
+        // err |= sx1509b_gpio_output_pin_init(io_expander, RED_LED);
         err |= sx1509b_led_drv_pin_init(io_expander, GREEN_LED);
         err |= sx1509b_led_drv_pin_init(io_expander, BLUE_LED);
         err |= sx1509b_led_drv_pin_init(io_expander, RED_LED);
@@ -221,7 +258,9 @@ static void microphone_init(void)
 		printk("FFT analyzer configured\n");
 	}
 
-	err = gpio_pin_configure(io_expander, 9, GPIO_OUTPUT);
+	// err = gpio_pin_configure(io_expander, 9, GPIO_OUTPUT);
+        err = sx1509b_gpio_output_pin_init(io_expander, MIC_PWR);
+
 
 	if (err) {
 		printk("Could not configure speaker power pin\n");
@@ -230,7 +269,8 @@ static void microphone_init(void)
 		printk("Speaker power pin configured\n");
 	}
 
-	gpio_port_set_bits_raw(io_expander, BIT(MIC_PWR));
+	// gpio_port_set_bits_raw(io_expander, BIT(MIC_PWR));
+        sx1509b_gpio_pin_onoff(io_expander, MIC_PWR, 1);
 
 	pdm_config.gain_l = 70; // 80 (decimal) is max
 
@@ -243,7 +283,8 @@ static void microphone_init(void)
 		printk("PDM initiated\n");
 	}
 
-	gpio_port_clear_bits_raw(io_expander, BIT(MIC_PWR));
+        sx1509b_gpio_pin_onoff(io_expander, MIC_PWR, 0);
+	// gpio_port_clear_bits_raw(io_expander, BIT(MIC_PWR));
 
 	k_delayed_work_init(&microphone_work, microphone_work_handler);
 }
@@ -338,15 +379,15 @@ const struct bt_mesh_comp *model_handler_init(void)
 {
 	button_and_led_init();
 	speaker_init();
-	// microphone_init();
+	microphone_init();
 	// gpio_pin_set_raw(io_expander, BLUE_LED, 0);
 	// gpio_pin_set_raw(io_expander, GREEN_LED, 0);
 	// gpio_pin_set_raw(io_expander, RED_LED, 0);
 	k_delayed_work_init(&orentiation_led_work, orentiation_led);
 	// k_delayed_work_submit(&orentiation_led_work, K_NO_WAIT);
-        sx1509b_set_pwm(io_expander, RED_LED, 255);
-        sx1509b_set_pwm(io_expander, GREEN_LED, 8);
-        sx1509b_set_pwm(io_expander, BLUE_LED, 0);
+        // sx1509b_set_pwm(io_expander, RED_LED, 255);
+        // sx1509b_set_pwm(io_expander, GREEN_LED, 8);
+        // sx1509b_set_pwm(io_expander, BLUE_LED, 0);
 
 
 	return &comp;

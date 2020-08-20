@@ -35,11 +35,57 @@ static struct mic_config mic_cfg = {
 	.pdm_config = NRFX_PDM_DEFAULT_CONFIG(26, 25),
 };
 
+static struct bt_mesh_whistle_rgb curr_rgb;
+static uint16_t curr_speed = 200;
+struct k_delayed_work rgb_picker_work;
+struct k_delayed_work speed_picker_work;
+struct k_delayed_work blink_work;
+
+static struct bt_mesh_whistle_cli whistle_cli = BT_MESH_WHISTLE_CLI_INIT;
+
 static int avg_freq;
 
 static inline int nrfx_err_code_check(nrfx_err_t nrfx_err)
 {
 	return NRFX_ERROR_BASE_NUM - nrfx_err ? true : false;
+}
+
+static void set_rgb_led(struct bt_mesh_whistle_rgb rgb)
+{
+	sx1509b_led_set_pwm_value(dev.io_expander, RED_LED, rgb.red);
+	sx1509b_led_set_pwm_value(dev.io_expander, GREEN_LED, rgb.green);
+	sx1509b_led_set_pwm_value(dev.io_expander, BLUE_LED, rgb.blue);
+}
+
+static void pick_rgb(uint16_t input_val, struct bt_mesh_whistle_rgb *rgb)
+{
+	uint16_t raw_val = input_val % (6 * 256);
+	uint8_t rgb_array[3];
+
+	if (!raw_val)
+	{
+		memset(rgb_array, 0, sizeof(rgb_array));
+		goto end;
+	}
+
+	uint8_t domain_idx = ((raw_val - (raw_val % 256)) / 256);
+	uint8_t zero_idx = (((4 + domain_idx) - ((4 + domain_idx) % 2)) / 2) % sizeof(rgb_array);
+	uint8_t max_idx = (((1 + domain_idx) - ((1 + domain_idx) % 2)) / 2) % sizeof(rgb_array);
+	uint8_t working_idx = (1 + (2 * domain_idx )) % sizeof(rgb_array);
+
+	rgb_array[zero_idx] = 0;
+	rgb_array[max_idx] = 255;
+
+	if ((domain_idx + 1) % 2) {
+		rgb_array[working_idx] = raw_val % 256;
+	} else {
+		rgb_array[working_idx] = 255 - (raw_val % 256);
+	}
+
+	end:
+	rgb->red = rgb_array[0];
+	rgb->green = rgb_array[1];
+	rgb->blue = rgb_array[2];
 }
 
 static int bind_devices(void)
@@ -68,8 +114,22 @@ static void button_handler_cb(u32_t pressed, u32_t changed)
 	case THINGY_ORIENT_Y_UP:
 		break;
 	case THINGY_ORIENT_Y_DOWN:
+		if ((pressed & BIT(0))) {
+			k_delayed_work_submit(&speed_picker_work, K_NO_WAIT);
+
+		} else if ((!pressed & BIT(0))) {
+			k_delayed_work_cancel(&speed_picker_work);
+		}
 		break;
 	case THINGY_ORIENT_X_DOWN:
+		if ((pressed & BIT(0))) {
+			k_delayed_work_cancel(&blink_work);
+			k_delayed_work_submit(&rgb_picker_work, K_NO_WAIT);
+
+		} else if ((!pressed & BIT(0))) {
+			k_delayed_work_cancel(&rgb_picker_work);
+			k_delayed_work_submit(&blink_work, K_NO_WAIT);
+		}
 		break;
 	case THINGY_ORIENT_Z_DOWN:
 
@@ -88,8 +148,16 @@ static void button_handler_cb(u32_t pressed, u32_t changed)
 		}
 		break;
 
-	case THINGY_ORIENT_Z_UP:
+	case THINGY_ORIENT_Z_UP: {
+		struct bt_mesh_whistle_rgb_msg msg;
+		msg.ttl = 0x3C;
+		msg.delay = curr_speed;
+		memcpy(&msg.color, &curr_rgb, sizeof(msg.color));
+		msg.speaker_on = false;
+
+		bt_mesh_whistle_cli_rgb_set(&whistle_cli, NULL, &msg);
 		break;
+	}
 	default:
 		return;
 	}
@@ -203,6 +271,46 @@ static void microphone_init(void)
 	k_delayed_work_init(&mic_cfg.microphone_work, microphone_work_handler);
 }
 
+static void rgb_picker_work_handler(struct k_work *work)
+{
+	static uint16_t val;
+
+	pick_rgb(val, &curr_rgb);
+	set_rgb_led(curr_rgb);
+	val += 16;
+	k_delayed_work_submit(&rgb_picker_work, K_MSEC(200));
+}
+
+static void speed_picker_work_handler(struct k_work *work)
+{
+	curr_speed +=50;
+
+	if (curr_speed >= 2000)
+	{
+		curr_speed = 200;
+	}
+
+	k_delayed_work_submit(&speed_picker_work, K_MSEC(200));
+}
+
+static void blink_work_handler(struct k_work *work)
+{
+	static bool onoff;
+	onoff = !onoff;
+
+	if (onoff)
+	{
+		set_rgb_led(curr_rgb);
+	}
+	else
+	{
+		struct bt_mesh_whistle_rgb rgb_off = {0,0,0};
+		set_rgb_led(rgb_off);
+	}
+
+	k_delayed_work_submit(&blink_work, K_MSEC(curr_speed));
+}
+
 /** Configuration server definition */
 static struct bt_mesh_cfg_srv cfg_srv = {
 	.relay = IS_ENABLED(CONFIG_BT_MESH_RELAY),
@@ -241,11 +349,6 @@ static struct bt_mesh_health_srv health_srv = {
 
 BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 
-struct bt_mesh_whistle_cb handlers = {
-
-};
-static struct bt_mesh_whistle_cli whistle_cli = BT_MESH_WHISTLE_CLI_INIT;
-
 static struct bt_mesh_elem elements[] = {
 	BT_MESH_ELEM(1,
 		     BT_MESH_MODEL_LIST(BT_MESH_MODEL_CFG_SRV(&cfg_srv),
@@ -274,6 +377,12 @@ const struct bt_mesh_comp *model_handler_init(void)
 	thingy52_orientation_handler_init();
 	speaker_init(SPEAKER_PWM_FREQ);
 	microphone_init();
+	k_delayed_work_init(&rgb_picker_work, rgb_picker_work_handler);
+	k_delayed_work_init(&speed_picker_work, speed_picker_work_handler);
+
+	k_delayed_work_init(&blink_work, blink_work_handler);
+	k_delayed_work_submit(&blink_work, K_NO_WAIT);
+
 
 	return &comp;
 }

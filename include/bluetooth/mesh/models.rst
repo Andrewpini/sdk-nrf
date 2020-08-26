@@ -28,6 +28,7 @@ Nordic Semiconductor provides a variety of model implementations from the `Mesh 
    ../../../include/bluetooth/mesh/lightness.rst
    ../../../include/bluetooth/mesh/light_ctrl.rst
    ../../../include/bluetooth/mesh/sensor_models.rst
+   ../../../demos/bluetooth/mesh/thingy52/common/model/thingy52_srv.rst
 
 For more information about these and other models, see also `Mesh Model Overview`_.
 

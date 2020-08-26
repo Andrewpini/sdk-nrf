@@ -29,6 +29,8 @@ manifest:
       url-base: https://github.com/ThrowTheSwitch
     - name: armmbed
       url-base: https://github.com/ARMmbed
+    - name: thebatfisk
+      url-base: https://github.com/thebatfisk
 
   # If not otherwise specified, the projects below should be obtained
   # from the ncs remote.
@@ -45,8 +47,8 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/introduction/index.html
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
-      repo-path: sdk-zephyr
-      revision: 7d20f2ebf25991b2897b91275939f8d16d38513a
+      repo-path: thebatfisk
+      revision: ee17acca6a3f9a0b554a978bfebf2abf3da57852
       import:
         # In addition to the zephyr repository itself, NCS also
         # imports the contents of zephyr/west.yml at the above

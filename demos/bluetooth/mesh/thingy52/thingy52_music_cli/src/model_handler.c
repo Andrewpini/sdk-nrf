@@ -74,7 +74,7 @@ static void button_handler_cb(uint32_t pressed, uint32_t changed)
 			err |= nrfx_err_code_check(nrfx_pdm_start());
 
 			for (int i = GREEN_LED; i <= RED_LED; i++) {
-				err |= sx1509b_set_pwm_val(dev.io_expander, i,
+				err |= sx1509b_pwm_pin_set(dev.io_expander, i,
 							   20);
 			}
 
@@ -84,7 +84,7 @@ static void button_handler_cb(uint32_t pressed, uint32_t changed)
 			k_delayed_work_cancel(&mic_cfg.microphone_work);
 
 			for (int i = GREEN_LED; i <= RED_LED; i++) {
-				err |= sx1509b_set_pwm_val(dev.io_expander, i,
+				err |= sx1509b_pwm_pin_set(dev.io_expander, i,
 							   0);
 			}
 
@@ -316,7 +316,7 @@ static void attention_on(struct bt_mesh_model *mod)
 	int err = 0;
 
 	for (int i = GREEN_LED; i <= RED_LED; i++) {
-		err |= sx1509b_set_pwm_val(dev.io_expander, i, 255);
+		err |= sx1509b_pwm_pin_set(dev.io_expander, i, 255);
 	}
 
 	if (err) {
@@ -329,7 +329,7 @@ static void attention_off(struct bt_mesh_model *mod)
 	int err = 0;
 
 	for (int i = GREEN_LED; i <= RED_LED; i++) {
-		err |= sx1509b_set_pwm_val(dev.io_expander, i, 0);
+		err |= sx1509b_pwm_pin_set(dev.io_expander, i, 0);
 	}
 
 	if (err) {

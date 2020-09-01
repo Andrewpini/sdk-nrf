@@ -44,9 +44,9 @@ static void set_large_rgb_led(struct bt_mesh_thingy52_rgb rgb)
 {
 	int err = 0;
 
-	err |= sx1509b_set_pwm_val(dev.io_expander, RED_LED, rgb.red);
-	err |= sx1509b_set_pwm_val(dev.io_expander, GREEN_LED, rgb.green);
-	err |= sx1509b_set_pwm_val(dev.io_expander, BLUE_LED, rgb.blue);
+	err |= sx1509b_pwm_pin_set(dev.io_expander, RED_LED, rgb.red);
+	err |= sx1509b_pwm_pin_set(dev.io_expander, GREEN_LED, rgb.green);
+	err |= sx1509b_pwm_pin_set(dev.io_expander, BLUE_LED, rgb.blue);
 
 	if (err) {
 		printk("Error setting large LED\n");
@@ -59,7 +59,7 @@ static void set_small_rgb_led(bool onoff)
 	uint8_t color_val = onoff ? 255 : 0;
 
 	for (int i = SMALL_RED_LED; i <= SMALL_BLUE_LED; i++) {
-		err |= sx1509b_set_pwm_val(dev.io_expander, i, color_val);
+		err |= sx1509b_pwm_pin_set(dev.io_expander, i, color_val);
 	}
 
 	if (err) {

@@ -81,11 +81,11 @@ static void led_fade_work_handler(struct k_work *work)
 		cur_rgb_msg.color.green = (cur_rgb_msg.color.green * 90) / 100;
 		cur_rgb_msg.color.blue = (cur_rgb_msg.color.blue * 90) / 100;
 
-		sx1509b_set_pwm_val(dev.io_expander, RED_LED,
+		sx1509b_pwm_pin_set(dev.io_expander, RED_LED,
 				    cur_rgb_msg.color.red);
-		sx1509b_set_pwm_val(dev.io_expander, GREEN_LED,
+		sx1509b_pwm_pin_set(dev.io_expander, GREEN_LED,
 				    cur_rgb_msg.color.green);
-		sx1509b_set_pwm_val(dev.io_expander, BLUE_LED,
+		sx1509b_pwm_pin_set(dev.io_expander, BLUE_LED,
 				    cur_rgb_msg.color.blue);
 
 		k_delayed_work_submit(&led_fade_work, K_MSEC(20));
@@ -98,11 +98,11 @@ static void led_fade_work_handler(struct k_work *work)
 			cur_rgb_msg.color.blue =
 				(cur_rgb_msg.color.blue * 80) / 100;
 
-			sx1509b_set_pwm_val(dev.io_expander, RED_LED,
+			sx1509b_pwm_pin_set(dev.io_expander, RED_LED,
 					    cur_rgb_msg.color.red);
-			sx1509b_set_pwm_val(dev.io_expander, GREEN_LED,
+			sx1509b_pwm_pin_set(dev.io_expander, GREEN_LED,
 					    cur_rgb_msg.color.green);
-			sx1509b_set_pwm_val(dev.io_expander, BLUE_LED,
+			sx1509b_pwm_pin_set(dev.io_expander, BLUE_LED,
 					    cur_rgb_msg.color.blue);
 
 			k_delayed_work_submit(&led_fade_work, K_MSEC(20));
@@ -116,9 +116,9 @@ static void led_fade_work_handler(struct k_work *work)
 
 static void set_rgb_led(struct bt_mesh_thingy52_rgb_msg rgb_msg)
 {
-	sx1509b_set_pwm_val(dev.io_expander, RED_LED, rgb_msg.color.red);
-	sx1509b_set_pwm_val(dev.io_expander, GREEN_LED, rgb_msg.color.green);
-	sx1509b_set_pwm_val(dev.io_expander, BLUE_LED, rgb_msg.color.blue);
+	sx1509b_pwm_pin_set(dev.io_expander, RED_LED, rgb_msg.color.red);
+	sx1509b_pwm_pin_set(dev.io_expander, GREEN_LED, rgb_msg.color.green);
+	sx1509b_pwm_pin_set(dev.io_expander, BLUE_LED, rgb_msg.color.blue);
 
 	cur_rgb_msg = rgb_msg;
 

@@ -4,6 +4,12 @@
  * SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
  */
 
+/** @file
+ *  @defgroup bt_mesh_thingy52_cli Thingy52 Client model
+ *  @{
+ *  @brief API for the Thingy52 Client.
+ */
+
 #ifndef BT_MESH_THINGY52_CLI_H__
 #define BT_MESH_THINGY52_CLI_H__
 
@@ -45,13 +51,29 @@ struct bt_mesh_thingy52_cli;
  * Should be initialized with the @ref BT_MESH_THINGY52_CLI_INIT macro.
  */
 struct bt_mesh_thingy52_cli {
-	/** Response context for tracking acknowledged messages. */
 	/** Publish parameters. */
 	struct bt_mesh_model_pub pub;
 	/** Access model pointer. */
 	struct bt_mesh_model *model;
 };
 
+/** @brief Send a RGB message.
+ *
+ * Asynchronously publishes a RGB message with the configured
+ * publish parameters.
+ *
+ * @param[in] cli Client instance to publish on.
+ * @param[in] ctx Message context to send with, or NULL to send with the
+ * default publish parameters.
+ * @param[in] rgb RGB message.
+ *
+ * @retval 0 Successfully published the message.
+ * @retval -ENOTSUP A message context was not provided and publishing is not
+ * supported.
+ * @retval -EADDRNOTAVAIL A message context was not provided and publishing is
+ * not configured.
+ * @retval -EAGAIN The device has not been provisioned.
+ */
 int bt_mesh_thingy52_cli_rgb_set(struct bt_mesh_thingy52_cli *cli,
 				struct bt_mesh_msg_ctx *ctx,
 				struct bt_mesh_thingy52_rgb_msg *rgb);
@@ -63,5 +85,7 @@ extern const struct bt_mesh_model_cb _bt_mesh_thingy52_cli_cb;
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif /* BT_MESH_THINGY52_CLI_H__ */

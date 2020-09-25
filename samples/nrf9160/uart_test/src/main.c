@@ -10,7 +10,7 @@
 #include <drivers/uart.h>
 #include <net/buf.h>
 #include <net/mqtt.h>
-
+#include <sys/crc.h>
 
 /* Uart device */
 static struct device *uart_dev;
@@ -80,6 +80,17 @@ static void uart_isr(struct device *unused, void *user_data)
 		remaining -= read;
 
 		if (!remaining) {
+
+
+			uint16_t generated = crc16_ansi(buf->data, buf->len - 2);
+			printk("Incoming generated checksum: %d\n", generated);
+
+
+
+			uint16_t checksum;
+			// checksum = (*(net_buf_tail(buf) - 1)<< 8) + *(net_buf_tail(buf) - 2);
+			memcpy(&checksum, net_buf_tail(buf) - 2, sizeof(checksum));
+			printk("Incoming checksum: %d\n", checksum);
 			net_buf_put(&tx_queue, buf);
 			buf = NULL;
 		}
@@ -89,19 +100,18 @@ static void uart_isr(struct device *unused, void *user_data)
 static void tx_thread(void *p1, void *p2, void *p3)
 {
 	while (1) {
-
 		struct net_buf *get_buf = net_buf_get(&tx_queue, K_FOREVER);
 
 		for (size_t i = get_buf->len; i > 0; i--) {
 			printk("%d-", net_buf_pull_u8(get_buf));
 		}
 		printk("\n");
+		printk("\n");
 
 		net_buf_unref(get_buf);
 		k_yield();
 	}
 }
-
 
 static void uart_cfg_read(void)
 {
@@ -133,7 +143,7 @@ static void tx_thread_create(void)
 static void mqtt_send(struct mqtt_publish_param param)
 {
 	uint8_t size = 5 + 8 + param.message.payload.len +
-		       param.message.topic.topic.size;
+		       param.message.topic.topic.size + 2;
 	printk("%d\n", size);
 	uint8_t buf[size + 1];
 	uint8_t buf_idx = 0;
@@ -166,18 +176,22 @@ static void mqtt_send(struct mqtt_publish_param param)
 	memcpy(buf+buf_idx, param.message.payload.data, param.message.payload.len);
 	buf_idx += param.message.payload.len;
 
-	for (size_t i = 0; i < size +1; i++)
-	{
+	uint16_t checksum = crc16_ansi(buf + sizeof(size), size - 2);
+	printk("Checksum: %d\n", checksum);
+
+	memcpy(buf+buf_idx, &checksum, sizeof(checksum));
+	buf_idx += sizeof(checksum);
+
+	for (size_t i = 0; i < sizeof(buf); i++) {
 		printk("%d-", buf[i]);
 	}
 	printk("\n");
-	for (size_t i = 0; i < size +1; i++)
-	{
-		printk("%c-", buf[i]);
-	}
-	printk("\n");
+	// for (size_t i = 0; i < sizeof(buf); i++) {
+	// 	printk("%c-", buf[i]);
+	// }
+	// printk("\n");
 
-	for (int i = 0; i < size + 1; i++) {
+	for (int i = 0; i < sizeof(buf); i++) {
 		uart_poll_out(uart_dev, buf[i]);
 	}
 }
@@ -199,7 +213,7 @@ void main(void)
 	param.message.topic.topic.size = strlen("my/publish/topic");
 	param.message.payload.data = "my_data";
 	param.message.payload.len = strlen("my_data");
-	param.message_id = 100;
+	param.message_id = 99;
 	param.dup_flag = 0;
 	param.retain_flag = 0;
 

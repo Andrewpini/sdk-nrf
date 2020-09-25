@@ -26,91 +26,24 @@ static uint8_t rx_buffer[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 static uint8_t tx_buffer[CONFIG_MQTT_MESSAGE_BUFFER_SIZE];
 static uint8_t payload_buf[CONFIG_MQTT_PAYLOAD_BUFFER_SIZE];
 
+struct mqtt_utf8 password = {
+    .utf8 = CONFIG_MQTT_PW,
+    .size = sizeof(CONFIG_MQTT_PW) - 1,
+};
+
+struct mqtt_utf8 user = {
+    .utf8 = CONFIG_MQTT_USER,
+    .size = sizeof(CONFIG_MQTT_USER) - 1,
+};
+
 /* The mqtt client struct */
 static struct mqtt_client client;
 
 /* MQTT Broker details. */
 static struct sockaddr_storage broker;
 
-/* Connected flag */
-static bool connected;
-
 /* File descriptor */
 static struct pollfd fds;
-
-#if defined(CONFIG_MQTT_LIB_TLS)
-static int certificates_provision(void)
-{
-	int err = 0;
-
-	printk("Provisioning certificates\n");
-
-#if defined(CONFIG_BSD_LIBRARY) && defined(CONFIG_MODEM_KEY_MGMT)
-
-	err = modem_key_mgmt_write(CONFIG_MQTT_TLS_SEC_TAG,
-				   MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN,
-				   CA_CERTIFICATE,
-				   strlen(CA_CERTIFICATE));
-	if (err) {
-		printk("Failed to provision CA certificate, err %d\n", err);
-		return err;
-	}
-
-#elif defined(CONFIG_BOARD_QEMU_X86) && defined(CONFIG_NET_SOCKETS_SOCKOPT_TLS)
-
-	err = tls_credential_add(CONFIG_MQTT_TLS_SEC_TAG,
-				 TLS_CREDENTIAL_CA_CERTIFICATE,
-				 CA_CERTIFICATE,
-				 sizeof(CA_CERTIFICATE));
-	if (err) {
-		printk("Failed to register CA certificate, error: %d\n", err);
-		return err;
-	}
-
-#endif
-
-	return err;
-}
-#endif /* defined(CONFIG_MQTT_LIB_TLS) */
-
-#if defined(CONFIG_BSD_LIBRARY)
-
-/**@brief Recoverable BSD library error. */
-void bsd_recoverable_error_handler(uint32_t err)
-{
-	printk("bsdlib recoverable error: %u\n", (unsigned int)err);
-}
-
-#endif /* defined(CONFIG_BSD_LIBRARY) */
-
-#if defined(CONFIG_LWM2M_CARRIER)
-K_SEM_DEFINE(carrier_registered, 0, 1);
-
-void lwm2m_carrier_event_handler(const lwm2m_carrier_event_t *event)
-{
-	switch (event->type) {
-	case LWM2M_CARRIER_EVENT_BSDLIB_INIT:
-		printk("LWM2M_CARRIER_EVENT_BSDLIB_INIT\n");
-		break;
-	case LWM2M_CARRIER_EVENT_CONNECT:
-		printk("LWM2M_CARRIER_EVENT_CONNECT\n");
-		break;
-	case LWM2M_CARRIER_EVENT_DISCONNECT:
-		printk("LWM2M_CARRIER_EVENT_DISCONNECT\n");
-		break;
-	case LWM2M_CARRIER_EVENT_READY:
-		printk("LWM2M_CARRIER_EVENT_READY\n");
-		k_sem_give(&carrier_registered);
-		break;
-	case LWM2M_CARRIER_EVENT_FOTA_START:
-		printk("LWM2M_CARRIER_EVENT_FOTA_START\n");
-		break;
-	case LWM2M_CARRIER_EVENT_REBOOT:
-		printk("LWM2M_CARRIER_EVENT_REBOOT\n");
-		break;
-	}
-}
-#endif /* defined(CONFIG_LWM2M_CARRIER) */
 
 /**@brief Function to print strings without null-termination
  */
@@ -145,30 +78,6 @@ static int data_publish(struct mqtt_client *c, enum mqtt_qos qos,
 		(unsigned int)strlen(CONFIG_MQTT_PUB_TOPIC));
 
 	return mqtt_publish(c, &param);
-}
-
-/**@brief Function to subscribe to the configured topic
- */
-static int subscribe(void)
-{
-	struct mqtt_topic subscribe_topic = {
-		.topic = {
-			.utf8 = CONFIG_MQTT_SUB_TOPIC,
-			.size = strlen(CONFIG_MQTT_SUB_TOPIC)
-		},
-		.qos = MQTT_QOS_1_AT_LEAST_ONCE
-	};
-
-	const struct mqtt_subscription_list subscription_list = {
-		.list = &subscribe_topic,
-		.list_count = 1,
-		.message_id = 1234
-	};
-
-	printk("Subscribing to: %s len %u\n", CONFIG_MQTT_SUB_TOPIC,
-		(unsigned int)strlen(CONFIG_MQTT_SUB_TOPIC));
-
-	return mqtt_subscribe(&client, &subscription_list);
 }
 
 /**@brief Function to read the published payload.
@@ -215,34 +124,33 @@ static int publish_get_payload(struct mqtt_client *c, size_t length)
 
 /**@brief MQTT client event handler
  */
-void mqtt_evt_handler(struct mqtt_client *const c,
-		      const struct mqtt_evt *evt)
+void mqtt_evt_handler(struct mqtt_client *const c, const struct mqtt_evt *evt)
 {
 	int err;
 
 	switch (evt->type) {
-	case MQTT_EVT_CONNACK:
-		if (evt->result != 0) {
-			printk("MQTT connect failed %d\n", evt->result);
-			break;
+	case MQTT_EVT_CONNACK: {
+		if (evt->result == 0) {
+			printk("MQTT client connected!\n");
+
+			struct mqtt_topic subscribe_topic = {
+				.topic = { .utf8 = CONFIG_MQTT_SUB_TOPIC,
+					   .size = strlen(
+						   CONFIG_MQTT_SUB_TOPIC) },
+				.qos = MQTT_QOS_1_AT_LEAST_ONCE
+			};
+
+			const struct mqtt_subscription_list subscription_list = {
+				.list = &subscribe_topic,
+				.list_count = 1,
+				.message_id = 1234
+			};
+
+			mqtt_subscribe(&client, &subscription_list);
 		}
 
-		connected = true;
-		printk("[%s:%d] MQTT client connected!\n", __func__, __LINE__);
-
-#if defined(CONFIG_MQTT_LIB_TLS)
-		printk("Connected with TLS\n");
-#endif
-
-		subscribe();
 		break;
-
-	case MQTT_EVT_DISCONNECT:
-		printk("[%s:%d] MQTT client disconnected %d\n", __func__,
-		       __LINE__, evt->result);
-
-		connected = false;
-		break;
+	}
 
 	case MQTT_EVT_PUBLISH: {
 		const struct mqtt_publish_param *p = &evt->param.publish;
@@ -265,38 +173,17 @@ void mqtt_evt_handler(struct mqtt_client *const c,
 				printk("Could not disconnect: %d\n", err);
 			}
 		}
-	} break;
+		break;
+	}
 
+	case MQTT_EVT_DISCONNECT:
 	case MQTT_EVT_PUBACK:
-		if (evt->result != 0) {
-			printk("MQTT PUBACK error %d\n", evt->result);
-			break;
-		}
-
-		printk("[%s:%d] PUBACK packet id: %u\n", __func__, __LINE__,
-				evt->param.puback.message_id);
-		break;
-
 	case MQTT_EVT_SUBACK:
-		if (evt->result != 0) {
-			printk("MQTT SUBACK error %d\n", evt->result);
-			break;
-		}
-
-		printk("[%s:%d] SUBACK packet id: %u\n", __func__, __LINE__,
-				evt->param.suback.message_id);
-		break;
-
 	case MQTT_EVT_PINGRESP:
-		if (evt->result != 0) {
-			printk("MQTT PINGRESP error %d\n", evt->result);
-			break;
-		}
-		break;
-
 	default:
-		printk("[%s:%d] default: %d\n", __func__, __LINE__,
-				evt->type);
+		if (evt->result != 0) {
+			printk("SOMETHING WENT WRONG\n");
+		}
 		break;
 	}
 }
@@ -348,7 +235,6 @@ static int broker_init(void)
 		}
 
 		addr = addr->ai_next;
-		break;
 	}
 
 	/* Free the address. */
@@ -376,8 +262,8 @@ static int client_init(struct mqtt_client *client)
 	client->evt_cb = mqtt_evt_handler;
 	client->client_id.utf8 = (uint8_t *)CONFIG_MQTT_CLIENT_ID;
 	client->client_id.size = strlen(CONFIG_MQTT_CLIENT_ID);
-	client->password = NULL;
-	client->user_name = NULL;
+	client->password = &password;
+	client->user_name = &user;
 	client->protocol_version = MQTT_VERSION_3_1_1;
 
 	/* MQTT buffers configuration */
@@ -387,32 +273,7 @@ static int client_init(struct mqtt_client *client)
 	client->tx_buf_size = sizeof(tx_buffer);
 
 	/* MQTT transport configuration */
-#if defined(CONFIG_MQTT_LIB_TLS)
-	struct mqtt_sec_config *tls_cfg = &(client->transport).tls.config;
-	static sec_tag_t sec_tag_list[] = { CONFIG_MQTT_TLS_SEC_TAG };
-
-	client->transport.type = MQTT_TRANSPORT_SECURE;
-
-	tls_cfg->peer_verify = CONFIG_MQTT_TLS_PEER_VERIFY;
-	tls_cfg->cipher_count = 0;
-	tls_cfg->cipher_list = NULL;
-	tls_cfg->sec_tag_count = ARRAY_SIZE(sec_tag_list);
-	tls_cfg->sec_tag_list = sec_tag_list;
-	tls_cfg->hostname = CONFIG_MQTT_BROKER_HOSTNAME;
-
-#if defined(CONFIG_BSD_LIBRARY)
-	tls_cfg->session_cache = IS_ENABLED(CONFIG_MQTT_TLS_SESSION_CACHING) ?
-					    TLS_SESSION_CACHE_ENABLED :
-					    TLS_SESSION_CACHE_DISABLED;
-#else
-	/* TLS session caching is not supported by the Zephyr network stack */
-	tls_cfg->session_cache = TLS_SESSION_CACHE_DISABLED;
-
-#endif
-
-#else
 	client->transport.type = MQTT_TRANSPORT_NON_SECURE;
-#endif
 
 	return err;
 }
@@ -424,15 +285,10 @@ static int fds_init(struct mqtt_client *c)
 	if (c->transport.type == MQTT_TRANSPORT_NON_SECURE) {
 		fds.fd = c->transport.tcp.sock;
 	} else {
-#if defined(CONFIG_MQTT_LIB_TLS)
-		fds.fd = c->transport.tls.sock;
-#else
 		return -ENOTSUP;
-#endif
 	}
 
 	fds.events = POLLIN;
-
 	return 0;
 }
 
@@ -441,62 +297,27 @@ static int fds_init(struct mqtt_client *c)
  */
 static void modem_configure(void)
 {
-#if defined(CONFIG_LTE_LINK_CONTROL)
-	if (IS_ENABLED(CONFIG_LTE_AUTO_INIT_AND_CONNECT)) {
-		/* Do nothing, modem is already turned on
-		 * and connected.
-		 */
-	} else {
-#if defined(CONFIG_LWM2M_CARRIER)
-		/* Wait for the LWM2M_CARRIER to configure the modem and
-		 * start the connection.
-		 */
-		printk("Waitng for carrier registration...\n");
-		k_sem_take(&carrier_registered, K_FOREVER);
-		printk("Registered!\n");
-#else /* defined(CONFIG_LWM2M_CARRIER) */
-		int err;
+	int err;
 
-		printk("LTE Link Connecting ...\n");
-		err = lte_lc_init_and_connect();
-		__ASSERT(err == 0, "LTE link could not be established.");
-		printk("LTE Link Connected!\n");
-#endif /* defined(CONFIG_LWM2M_CARRIER) */
-	}
-#endif /* defined(CONFIG_LTE_LINK_CONTROL) */
+	printk("LTE Link Connecting ...\n");
+	err = lte_lc_init_and_connect();
+	__ASSERT(err == 0, "LTE link could not be established.");
+	printk("LTE Link Connected!\n");
 }
 
 void main(void)
 {
-	int err;
+	int err = 0;
 
 	printk("The MQTT simple sample started\n");
-
-#if defined(CONFIG_MQTT_LIB_TLS)
-	err = certificates_provision();
-	if (err != 0) {
-		printk("Failed to provision certificates\n");
-		return;
-	}
-#endif /* defined(CONFIG_MQTT_LIB_TLS) */
-
 	modem_configure();
 
-	err = client_init(&client);
-	if (err != 0) {
-		printk("ERROR: client_init %d\n", err);
-		return;
-	}
+	err |= client_init(&client);
+	err |= mqtt_connect(&client);
+	err |= fds_init(&client);
 
-	err = mqtt_connect(&client);
 	if (err != 0) {
-		printk("ERROR: mqtt_connect %d\n", err);
-		return;
-	}
-
-	err = fds_init(&client);
-	if (err != 0) {
-		printk("ERROR: fds_init %d\n", err);
+		printk("MQTT initialization failed\n");
 		return;
 	}
 

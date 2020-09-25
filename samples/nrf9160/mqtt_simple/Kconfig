@@ -5,6 +5,15 @@
 #
 
 menu "MQTT simple sample"
+
+config MQTT_USER
+	string "MQTT publish topic"
+	default "user1"
+
+config MQTT_PW
+	string "MQTT publish topic"
+	default "anders"
+
 config MQTT_PUB_TOPIC
 	string "MQTT publish topic"
 	default "my/publish/topic"

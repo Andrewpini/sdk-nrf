@@ -11,8 +11,12 @@
 #include <net/buf.h>
 #include <net/mqtt.h>
 #include <sys/crc.h>
+#include <errno.h>
+#include "slip.h"
 
 #define CHECKSUM_SIZE 2
+#define MQTT_STATIC_SIZE 13
+#define MQTT_PACKET_RECIEVED_SUCCESS 0
 
 /* Uart device */
 static struct device *uart_dev;
@@ -24,43 +28,20 @@ static K_FIFO_DEFINE(tx_queue);
 
 NET_BUF_POOL_VAR_DEFINE(uart_pool, 10, 1024, NULL);
 
-static int uart_read(struct device *uart, uint8_t *buf,
-		   size_t len, size_t min)
-{
-	int total = 0;
-
-	while (len) {
-		int rx;
-
-		rx = uart_fifo_read(uart, buf, len);
-		if (rx == 0) {
-			if (total < min) {
-				continue;
-			}
-			break;
-		}
-
-		len -= rx;
-		total += rx;
-		buf += rx;
-	}
-
-	return total;
-}
-
 static void uart_isr(struct device *unused, void *user_data)
 {
-	static struct net_buf *buf;
-	static uint8_t remaining;
-	static uint8_t preamble_cnt;
+	static uint8_t slip_buffer[128];
+	static slip_t slip = {
+			.state          = SLIP_STATE_DECODING,
+			.p_buffer       = slip_buffer,
+			.current_index  = 0,
+			.buffer_len     = sizeof(slip_buffer)};
 
 	ARG_UNUSED(unused);
 	ARG_UNUSED(user_data);
 
 	while (uart_irq_update(uart_dev) &&
 	       uart_irq_is_pending(uart_dev)) {
-		int read;
-		uint16_t checksum;
 		if (!uart_irq_rx_ready(uart_dev)) {
 			if (uart_irq_tx_ready(uart_dev)) {
 				printk("transmit ready\n");
@@ -71,65 +52,46 @@ static void uart_isr(struct device *unused, void *user_data)
 			break;
 		}
 
-		if (!remaining && (preamble_cnt < 5)) {
-			uint8_t preamble;
-			uart_read(uart_dev, &preamble, 1, 0);
-			printk("Preamble: %d\n", preamble);
-			if (preamble == 0xFF) {
-				preamble_cnt++;
-			} else {
-				preamble_cnt = 0;
-			}
-			continue;
-		}
+		uint8_t byte;
 
-		/* Beginning of a new packet */
-		if (!remaining) {
-			uart_read(uart_dev, &remaining, 1, 0);
-			buf = net_buf_alloc_len(&uart_pool, remaining - CHECKSUM_SIZE,
-						    K_NO_WAIT);
-			printk("Rem: %d\n", remaining);
-		}
+		uart_fifo_read(uart_dev, &byte, sizeof(byte));
+		int ret_code = slip_decode_add_byte(&slip, byte);
 
-		if (remaining > CHECKSUM_SIZE) {
-			read = uart_read(uart_dev, net_buf_tail(buf), remaining,
-					 0);
-			buf->len += read;
-			remaining -= read;
-		} else if (remaining > 0) {
-			read = uart_read(uart_dev, &checksum, sizeof(checksum),
-					 2);
-			remaining -= read;
-		}
+		switch (ret_code) {
+		case MQTT_PACKET_RECIEVED_SUCCESS: {
+			uint16_t checksum_local =
+				crc16_ansi(slip.p_buffer,
+					   slip.current_index - CHECKSUM_SIZE);
+			uint16_t checksum_incoming;
 
-		if (!remaining) {
-			if (crc16_ansi(buf->data, buf->len) == checksum) {
+			memcpy(&checksum_incoming,
+			       slip.p_buffer +
+				       (slip.current_index - CHECKSUM_SIZE),
+			       sizeof(checksum_incoming));
+
+			if (checksum_incoming == checksum_local) {
 				printk("Correct Checksum\n");
+				struct net_buf *buf = net_buf_alloc_len(
+					&uart_pool,
+					slip.current_index - CHECKSUM_SIZE,
+					K_NO_WAIT);
+				net_buf_add_mem(buf, slip.p_buffer,
+						slip.current_index -
+							CHECKSUM_SIZE);
 				net_buf_put(&tx_queue, buf);
-
 			} else {
-				net_buf_unref(buf);
 				printk("Invalid Checksum\n");
 			}
-			buf = NULL;
-			preamble_cnt = 0;
 		}
-	}
-}
+			// fall through
+		case -ENOMEM:
+			slip.current_index = 0;
+			slip.state = SLIP_STATE_DECODING;
+			break;
 
-static void tx_thread(void *p1, void *p2, void *p3)
-{
-	while (1) {
-		struct net_buf *get_buf = net_buf_get(&tx_queue, K_FOREVER);
-
-		for (size_t i = get_buf->len; i > 0; i--) {
-			printk("%d-", net_buf_pull_u8(get_buf));
+		default:
+			break;
 		}
-		printk("\n");
-		printk("\n");
-
-		net_buf_unref(get_buf);
-		k_yield();
 	}
 }
 
@@ -152,6 +114,47 @@ static void uart_irq_init(void)
 	uart_irq_rx_enable(uart_dev);
 }
 
+static void mqtt_msg_parse(struct net_buf *buf, struct mqtt_publish_param *param)
+{
+	param->message.topic.qos = net_buf_pull_u8(buf);
+	printk("QOS: %d\n", param->message.topic.qos);
+
+	param->message_id = net_buf_pull_le16(buf);
+	printk("Msg ID: %d\n", param->message_id);
+
+	param->dup_flag = net_buf_pull_u8(buf);
+	printk("DUP flag: %d\n", param->dup_flag);
+
+	param->retain_flag = net_buf_pull_u8(buf);
+	printk("Retain flag: %d\n", param->retain_flag);
+
+	param->message.topic.topic.size = net_buf_pull_le32(buf);
+	printk("Topic size: %d\n", param->message.topic.topic.size);
+
+	param->message.topic.topic.utf8 = net_buf_pull_mem(buf, param->message.topic.topic.size);
+	printk("Topic data: %s\n", param->message.topic.topic.utf8);
+
+	param->message.payload.len = net_buf_pull_le32(buf);
+	printk("Data size: %d\n", param->message.payload.len);
+
+	param->message.payload.data = net_buf_pull_mem(buf, param->message.payload.len);
+	printk("Data: %s\n", param->message.payload.data);
+
+	printk("\n");
+}
+
+static void tx_thread(void *p1, void *p2, void *p3)
+{
+	while (1) {
+		struct net_buf *get_buf = net_buf_get(&tx_queue, K_FOREVER);
+		struct mqtt_publish_param param;
+
+		mqtt_msg_parse(get_buf, &param);
+		net_buf_unref(get_buf);
+		k_yield();
+	}
+}
+
 static void tx_thread_create(void)
 {
 	k_thread_create(&tx_thread_data, tx_thread_stack,
@@ -162,61 +165,54 @@ static void tx_thread_create(void)
 
 static void mqtt_send(struct mqtt_publish_param param)
 {
-	uint8_t preamble[5] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-	uint8_t size = 5 + 8 + param.message.payload.len +
-		       param.message.topic.topic.size + CHECKSUM_SIZE;
-	printk("%d\n", size);
-	uint8_t buf[size + sizeof(size) + sizeof(preamble)];
+	uint8_t buf[MQTT_STATIC_SIZE + param.message.payload.len +
+		    param.message.topic.topic.size + CHECKSUM_SIZE];
 	uint8_t buf_idx = 0;
 
-	memcpy(buf+buf_idx, preamble, sizeof(preamble));
-	buf_idx += sizeof(preamble);
-
-	memcpy(buf+buf_idx, &size, sizeof(size));
-	buf_idx += sizeof(size);
-
-	memcpy(buf+buf_idx, &param.message.topic.qos, sizeof(param.message.topic.qos));
+	/* Add QOS and message ID to outgoing packet buffer*/
+	memcpy(buf + buf_idx, &param.message.topic.qos,
+	       sizeof(param.message.topic.qos));
 	buf_idx += sizeof(param.message.topic.qos);
-	memcpy(buf+buf_idx, &param.message_id, sizeof(param.message_id));
+	memcpy(buf + buf_idx, &param.message_id, sizeof(param.message_id));
 	buf_idx += sizeof(param.message_id);
 
+	/* Add Retain- and DUP flags to outgoing packet buffer*/
 	buf[buf_idx] = param.dup_flag;
 	buf_idx += sizeof(uint8_t);
 	buf[buf_idx] = param.retain_flag;
 	buf_idx += sizeof(uint8_t);
 
-	// memcpy(buf+buf_idx, &param.dup_flag, sizeof(uint8_t));
-	// buf_idx += sizeof(uint8_t);
-	// memcpy(buf+buf_idx, &param.retain_flag, sizeof(uint8_t));
-	// buf_idx += sizeof(uint8_t);
-
-	memcpy(buf+buf_idx, &param.message.topic.topic.size, sizeof(param.message.topic.topic.size));
+	/* Add Topic and Topic length to outgoing packet buffer*/
+	memcpy(buf + buf_idx, &param.message.topic.topic.size,
+	       sizeof(param.message.topic.topic.size));
 	buf_idx += sizeof(param.message.topic.topic.size);
-	memcpy(buf+buf_idx, param.message.topic.topic.utf8, param.message.topic.topic.size);
+	memcpy(buf + buf_idx, param.message.topic.topic.utf8,
+	       param.message.topic.topic.size);
 	buf_idx += param.message.topic.topic.size;
 
-	memcpy(buf+buf_idx, &param.message.payload.len, sizeof(param.message.payload.len));
+	/* Add Data and Data length to outgoing packet buffer*/
+	memcpy(buf + buf_idx, &param.message.payload.len,
+	       sizeof(param.message.payload.len));
 	buf_idx += sizeof(param.message.payload.len);
-	memcpy(buf+buf_idx, param.message.payload.data, param.message.payload.len);
+	memcpy(buf + buf_idx, param.message.payload.data,
+	       param.message.payload.len);
 	buf_idx += param.message.payload.len;
 
-	uint16_t checksum = crc16_ansi(buf + sizeof(size) + sizeof(preamble), size - CHECKSUM_SIZE);
-	printk("Checksum: %d\n", checksum);
+	/* Add Data and Data length to outgoing packet buffer*/
+	uint16_t checksum = crc16_ansi(buf, sizeof(buf) - CHECKSUM_SIZE);
 
-	memcpy(buf+buf_idx, &checksum, sizeof(checksum));
+	memcpy(buf + buf_idx, &checksum, sizeof(checksum));
 	buf_idx += sizeof(checksum);
 
-	for (size_t i = 0; i < sizeof(buf); i++) {
-		printk("%d-", buf[i]);
-	}
-	printk("\n");
-	// for (size_t i = 0; i < sizeof(buf); i++) {
-	// 	printk("%c-", buf[i]);
-	// }
-	// printk("\n");
+	/* Wrap outgoing packet with SLIP */
+	uint8_t slip_buf[sizeof(buf) * 2];
+	uint32_t slip_buf_len;
 
-	for (int i = 0; i < sizeof(buf); i++) {
-		uart_poll_out(uart_dev, buf[i]);
+	slip_encode(slip_buf, buf, sizeof(buf), &slip_buf_len);
+
+	/* Send packet over UART */
+	for (int i = 0; i < slip_buf_len; i++) {
+		uart_poll_out(uart_dev, slip_buf[i]);
 	}
 }
 
@@ -233,61 +229,16 @@ void main(void)
 	struct mqtt_publish_param param;
 
 	param.message.topic.qos = 1;
-	param.message.topic.topic.utf8 = "my/publish/topicqweasd";
-	param.message.topic.topic.size = strlen("my/publish/topicqweasd");
-	param.message.payload.data = "my_data";
-	param.message.payload.len = strlen("my_data");
+	param.message.topic.topic.utf8 = "my/publish/topic";
+	param.message.topic.topic.size = strlen("my/publish/topic");
+	param.message.payload.data = "anders_data";
+	param.message.payload.len = strlen("anders_data");
 	param.message_id = 99;
 	param.dup_flag = 0;
-	param.retain_flag = 0;
+	param.retain_flag = 1;
 
 	while (1) {
 		mqtt_send(param);
-
-		// const struct {
-		// 	const uint8_t tot_size;
-		// 	const char topic_size;
-		// 	const char topic[7];
-		// 	const char data_size;
-		// 	const char data[15];
-		// } __packed mqtt_pkg2 = {
-		// 	.tot_size = 24,
-		// 	.topic_size = 7,
-		// 	.topic = "Anders",
-		// 	.data_size = 15,
-		// 	.data = "Hestvik Storro",
-
-		// };
-
-
-		// for (int i = 0; i < sizeof(mqtt_pkg2); i++) {
-		// 	uart_poll_out(uart_dev,
-		// 		      *(((const uint8_t *)&mqtt_pkg2)+i));
-		// }
-
-		// k_sleep(K_MSEC(500));
-
-		// const struct {
-		// 	const uint8_t tot_size;
-		// 	const char topic_size;
-		// 	const char topic[5];
-		// 	const char data_size;
-		// 	const char data[8];
-		// } __packed mqtt_pkg = {
-		// 	.tot_size = 15,
-		// 	.topic_size = 5,
-		// 	.topic = "Erik",
-		// 	.data_size = 8,
-		// 	.data = "Robstad",
-
-		// };
-
-		// for (int i = 0; i < sizeof(mqtt_pkg); i++) {
-		// 	uart_poll_out(uart_dev,
-		// 		      *(((const uint8_t *)&mqtt_pkg)+i));
-		// }
-
-
 		k_sleep(K_MSEC(1000));
 	}
 }

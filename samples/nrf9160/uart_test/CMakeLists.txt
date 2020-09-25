@@ -16,5 +16,6 @@ cmake_minimum_required(VERSION 3.13.1)
 
 # NORDIC SDK APP START
 target_sources(app PRIVATE src/main.c)
+target_sources(app PRIVATE src/slip.c)
 # NORDIC SDK APP END
 

@@ -12,6 +12,8 @@
 #include <net/mqtt.h>
 #include <sys/crc.h>
 
+#define CHECKSUM_SIZE 2
+
 /* Uart device */
 static struct device *uart_dev;
 
@@ -57,6 +59,7 @@ static void uart_isr(struct device *unused, void *user_data)
 	while (uart_irq_update(uart_dev) &&
 	       uart_irq_is_pending(uart_dev)) {
 		int read;
+		uint16_t checksum;
 		if (!uart_irq_rx_ready(uart_dev)) {
 			if (uart_irq_tx_ready(uart_dev)) {
 				printk("transmit ready\n");
@@ -70,29 +73,33 @@ static void uart_isr(struct device *unused, void *user_data)
 		/* Beginning of a new packet */
 		if (!remaining) {
 			uart_read(uart_dev, &remaining, 1, 0);
-			buf = net_buf_alloc_len(&uart_pool, remaining,
+			buf = net_buf_alloc_len(&uart_pool, remaining - CHECKSUM_SIZE,
 						    K_NO_WAIT);
 			printk("Rem: %d\n", remaining);
 		}
 
-		read = uart_read(uart_dev, net_buf_tail(buf), remaining, 0);
-		buf->len += read;
-		remaining -= read;
+		if (remaining > CHECKSUM_SIZE) {
+			read = uart_read(uart_dev, net_buf_tail(buf), remaining,
+					 0);
+			buf->len += read;
+			remaining -= read;
+		} else if (remaining > 0) {
+			read = uart_read(uart_dev, &checksum, sizeof(checksum),
+					 2);
+			remaining -= read;
+		}
 
 		if (!remaining) {
+			if (crc16_ansi(buf->data, buf->len) == checksum) {
+				printk("Correct Checksum\n");
+				net_buf_put(&tx_queue, buf);
+				buf = NULL;
 
-
-			uint16_t generated = crc16_ansi(buf->data, buf->len - 2);
-			printk("Incoming generated checksum: %d\n", generated);
-
-
-
-			uint16_t checksum;
-			// checksum = (*(net_buf_tail(buf) - 1)<< 8) + *(net_buf_tail(buf) - 2);
-			memcpy(&checksum, net_buf_tail(buf) - 2, sizeof(checksum));
-			printk("Incoming checksum: %d\n", checksum);
-			net_buf_put(&tx_queue, buf);
-			buf = NULL;
+			} else {
+				net_buf_unref(buf);
+				printk("Invalid Checksum\n");
+				buf = NULL;
+			}
 		}
 	}
 }
@@ -143,7 +150,7 @@ static void tx_thread_create(void)
 static void mqtt_send(struct mqtt_publish_param param)
 {
 	uint8_t size = 5 + 8 + param.message.payload.len +
-		       param.message.topic.topic.size + 2;
+		       param.message.topic.topic.size + CHECKSUM_SIZE;
 	printk("%d\n", size);
 	uint8_t buf[size + 1];
 	uint8_t buf_idx = 0;
@@ -176,7 +183,7 @@ static void mqtt_send(struct mqtt_publish_param param)
 	memcpy(buf+buf_idx, param.message.payload.data, param.message.payload.len);
 	buf_idx += param.message.payload.len;
 
-	uint16_t checksum = crc16_ansi(buf + sizeof(size), size - 2);
+	uint16_t checksum = crc16_ansi(buf + sizeof(size), size - CHECKSUM_SIZE);
 	printk("Checksum: %d\n", checksum);
 
 	memcpy(buf+buf_idx, &checksum, sizeof(checksum));
@@ -209,8 +216,8 @@ void main(void)
 	struct mqtt_publish_param param;
 
 	param.message.topic.qos = 1;
-	param.message.topic.topic.utf8 = "my/publish/topic";
-	param.message.topic.topic.size = strlen("my/publish/topic");
+	param.message.topic.topic.utf8 = "my/publish/topicqweasd";
+	param.message.topic.topic.size = strlen("my/publish/topicqweasd");
 	param.message.payload.data = "my_data";
 	param.message.payload.len = strlen("my_data");
 	param.message_id = 99;

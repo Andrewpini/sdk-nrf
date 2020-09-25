@@ -52,6 +52,7 @@ static void uart_isr(struct device *unused, void *user_data)
 {
 	static struct net_buf *buf;
 	static uint8_t remaining;
+	static uint8_t preamble_cnt;
 
 	ARG_UNUSED(unused);
 	ARG_UNUSED(user_data);
@@ -68,6 +69,18 @@ static void uart_isr(struct device *unused, void *user_data)
 			}
 			/* Only the UART RX path is interrupt-enabled */
 			break;
+		}
+
+		if (!remaining && (preamble_cnt < 5)) {
+			uint8_t preamble;
+			uart_read(uart_dev, &preamble, 1, 0);
+			printk("Preamble: %d\n", preamble);
+			if (preamble == 0xFF) {
+				preamble_cnt++;
+			} else {
+				preamble_cnt = 0;
+			}
+			continue;
 		}
 
 		/* Beginning of a new packet */
@@ -93,13 +106,13 @@ static void uart_isr(struct device *unused, void *user_data)
 			if (crc16_ansi(buf->data, buf->len) == checksum) {
 				printk("Correct Checksum\n");
 				net_buf_put(&tx_queue, buf);
-				buf = NULL;
 
 			} else {
 				net_buf_unref(buf);
 				printk("Invalid Checksum\n");
-				buf = NULL;
 			}
+			buf = NULL;
+			preamble_cnt = 0;
 		}
 	}
 }
@@ -149,13 +162,17 @@ static void tx_thread_create(void)
 
 static void mqtt_send(struct mqtt_publish_param param)
 {
+	uint8_t preamble[5] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	uint8_t size = 5 + 8 + param.message.payload.len +
 		       param.message.topic.topic.size + CHECKSUM_SIZE;
 	printk("%d\n", size);
-	uint8_t buf[size + 1];
+	uint8_t buf[size + sizeof(size) + sizeof(preamble)];
 	uint8_t buf_idx = 0;
 
-	memcpy(buf, &size, sizeof(size));
+	memcpy(buf+buf_idx, preamble, sizeof(preamble));
+	buf_idx += sizeof(preamble);
+
+	memcpy(buf+buf_idx, &size, sizeof(size));
 	buf_idx += sizeof(size);
 
 	memcpy(buf+buf_idx, &param.message.topic.qos, sizeof(param.message.topic.qos));
@@ -183,7 +200,7 @@ static void mqtt_send(struct mqtt_publish_param param)
 	memcpy(buf+buf_idx, param.message.payload.data, param.message.payload.len);
 	buf_idx += param.message.payload.len;
 
-	uint16_t checksum = crc16_ansi(buf + sizeof(size), size - CHECKSUM_SIZE);
+	uint16_t checksum = crc16_ansi(buf + sizeof(size) + sizeof(preamble), size - CHECKSUM_SIZE);
 	printk("Checksum: %d\n", checksum);
 
 	memcpy(buf+buf_idx, &checksum, sizeof(checksum));

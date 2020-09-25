@@ -1,5 +1,5 @@
 
-/*&uart1 {
+&uart1 {
 	compatible = "nordic,nrf-uarte";
 	current-speed = <115200>;
 	status = "okay";
@@ -8,9 +8,9 @@
 	rx-pin = <17>;
 	rts-pin = <21>;
 	cts-pin = <19>;
-};*/
+};
 
-&uart1 {
+/*&uart1 {
 	compatible = "nordic,nrf-uarte";
 	current-speed = <115200>;
 	status = "okay";
@@ -19,4 +19,4 @@
 	rx-pin = <11>;
 	rts-pin = <12>;
 	cts-pin = <13>;
-};
+};*/

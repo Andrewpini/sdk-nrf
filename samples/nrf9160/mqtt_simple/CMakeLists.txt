@@ -11,4 +11,5 @@ project(mqtt-simple)
 
 # NORDIC SDK APP START
 target_sources(app PRIVATE src/main.c)
+target_sources(app PRIVATE src/slip.c)
 # NORDIC SDK APP END

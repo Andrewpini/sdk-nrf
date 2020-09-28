@@ -143,26 +143,6 @@ static void mqtt_msg_parse(struct net_buf *buf, struct mqtt_publish_param *param
 	printk("\n");
 }
 
-static void tx_thread(void *p1, void *p2, void *p3)
-{
-	while (1) {
-		struct net_buf *get_buf = net_buf_get(&tx_queue, K_FOREVER);
-		struct mqtt_publish_param param;
-
-		mqtt_msg_parse(get_buf, &param);
-		net_buf_unref(get_buf);
-		k_yield();
-	}
-}
-
-static void tx_thread_create(void)
-{
-	k_thread_create(&tx_thread_data, tx_thread_stack,
-			K_THREAD_STACK_SIZEOF(tx_thread_stack), tx_thread,
-			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
-	k_thread_name_set(&tx_thread_data, "Uart TX");
-}
-
 static void mqtt_send(struct mqtt_publish_param param)
 {
 	uint8_t buf[MQTT_STATIC_SIZE + param.message.payload.len +
@@ -216,6 +196,27 @@ static void mqtt_send(struct mqtt_publish_param param)
 	}
 }
 
+static void tx_thread(void *p1, void *p2, void *p3)
+{
+	while (1) {
+		struct net_buf *get_buf = net_buf_get(&tx_queue, K_FOREVER);
+		struct mqtt_publish_param param;
+
+		mqtt_msg_parse(get_buf, &param);
+		mqtt_send(param);
+		net_buf_unref(get_buf);
+		k_yield();
+	}
+}
+
+static void tx_thread_create(void)
+{
+	k_thread_create(&tx_thread_data, tx_thread_stack,
+			K_THREAD_STACK_SIZEOF(tx_thread_stack), tx_thread,
+			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
+	k_thread_name_set(&tx_thread_data, "Uart TX");
+}
+
 void main(void)
 {
 	printk("The Uart test sample started\n");
@@ -238,7 +239,7 @@ void main(void)
 	param.retain_flag = 1;
 
 	while (1) {
-		mqtt_send(param);
+		// mqtt_send(param);
 		k_sleep(K_MSEC(1000));
 	}
 }

@@ -41,13 +41,13 @@
 static struct device *uart_dev;
 
 /* Tx thread for Uart */
-static K_THREAD_STACK_DEFINE(tx_thread_stack, 1536);
-static struct k_thread tx_thread_data;
+static K_THREAD_STACK_DEFINE(uart_tx_thread_stack, 1536);
+static struct k_thread uart_tx_thread_data;
 static K_FIFO_DEFINE(tx_queue);
 
 /* Test thread */
-static K_THREAD_STACK_DEFINE(tx_thread_stackII, 1536);
-static struct k_thread tx_thread_mqtt_data;
+static K_THREAD_STACK_DEFINE(mqtt_rx_thread_stack, 1536);
+static struct k_thread mqtt_rx_thread_data;
 
 NET_BUF_POOL_VAR_DEFINE(uart_pool, 10, 1024, NULL);
 
@@ -170,56 +170,13 @@ static void uart_irq_init(void)
 static void mqtt_msg_parse(struct net_buf *buf, struct mqtt_publish_param *param)
 {
 	param->message.topic.qos = net_buf_pull_u8(buf);
-	// printk("QOS: %d\n", param->message.topic.qos);
-
 	param->message_id = net_buf_pull_le16(buf);
-	// printk("Msg ID: %d\n", param->message_id);
-
 	param->dup_flag = net_buf_pull_u8(buf);
-	// printk("DUP flag: %d\n", param->dup_flag);
-
 	param->retain_flag = net_buf_pull_u8(buf);
-	// printk("Retain flag: %d\n", param->retain_flag);
-
 	param->message.topic.topic.size = net_buf_pull_le32(buf);
-	// printk("Topic size: %d\n", param->message.topic.topic.size);
-
 	param->message.topic.topic.utf8 = net_buf_pull_mem(buf, param->message.topic.topic.size);
-	// printk("Topic data: %s\n", param->message.topic.topic.utf8);
-
 	param->message.payload.len = net_buf_pull_le32(buf);
-	// printk("Data size: %d\n", param->message.payload.len);
-
 	param->message.payload.data = net_buf_pull_mem(buf, param->message.payload.len);
-	// printk("Data: %s\n", param->message.payload.data);
-
-	// printk("\n");
-}
-
-static void tx_thread(void *p1, void *p2, void *p3)
-{
-	while (1) {
-		// k_mutex_lock(&my_mutex, K_FOREVER);
-		struct net_buf *get_buf = net_buf_get(&tx_queue, K_FOREVER);
-		struct mqtt_publish_param param;
-
-		mqtt_msg_parse(get_buf, &param);
-		mqtt_publish(&client, &param);
-		net_buf_unref(get_buf);
-		// k_mutex_unlock(&my_mutex);
-		// k_yield();
-		// printk("Thread!\n");
-		// k_thread_suspend(&tx_thread_data);
-		// k_sleep(K_MSEC(30));
-	}
-}
-
-static void tx_thread_create(void)
-{
-	k_thread_create(&tx_thread_data, tx_thread_stack,
-			K_THREAD_STACK_SIZEOF(tx_thread_stack), tx_thread,
-			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
-	k_thread_name_set(&tx_thread_data, "Uart TX");
 }
 
 static void mqtt_send(struct mqtt_publish_param param)
@@ -554,29 +511,12 @@ static void modem_configure(void)
 	__ASSERT(err == 0, "LTE link could not be established.");
 	printk("LTE Link Connected!\n");
 }
-static struct k_delayed_work mqtt_send_to_broker_work;
 
-static void mqtt_send_to_broker(struct k_work *work)
-{
-	// struct net_buf *get_buf = net_buf_get(&tx_queue, K_NO_WAIT);
-	// if (get_buf)
-	// {
-	// 	struct mqtt_publish_param param;
-
-	// 	mqtt_msg_parse(get_buf, &param);
-	// 	mqtt_publish(&client, &param);
-	// 	net_buf_unref(get_buf);
-	// 	sent++;
-	// 	printk("Sent: %d, Recived: %d\n\n", sent, recived);
-	// }
-	k_delayed_work_submit(&mqtt_send_to_broker_work, K_MSEC(30));
-}
-
-static void tx_mqtt_thread(void *p1, void *p2, void *p3)
+static void mqtt_rx_thread(void *p1, void *p2, void *p3)
 {
 	int err = 0;
 	while (1) {
-		err = poll(&fds, 1, 50);
+		err = poll(&fds, 1, 10000);
 		if (err < 0) {
 			printk("ERROR: poll %d\n", errno);
 			break;
@@ -616,14 +556,34 @@ static void tx_mqtt_thread(void *p1, void *p2, void *p3)
 	}
 }
 
-static void tx_threadII_create(void)
+static void mqtt_rx_thread_create(void)
 {
-	k_thread_create(&tx_thread_mqtt_data, tx_thread_stackII,
-			K_THREAD_STACK_SIZEOF(tx_thread_stackII), tx_mqtt_thread,
+	k_thread_create(&mqtt_rx_thread_data, mqtt_rx_thread_stack,
+			K_THREAD_STACK_SIZEOF(mqtt_rx_thread_stack), mqtt_rx_thread,
 			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
-	k_thread_name_set(&tx_thread_mqtt_data, "MQTT Rx");
+	k_thread_name_set(&mqtt_rx_thread_data, "MQTT Rx");
 }
 
+static void uart_tx_thread(void *p1, void *p2, void *p3)
+{
+	while (1) {
+		struct net_buf *get_buf = net_buf_get(&tx_queue, K_FOREVER);
+		struct mqtt_publish_param param;
+
+		mqtt_msg_parse(get_buf, &param);
+		mqtt_publish(&client, &param);
+		net_buf_unref(get_buf);
+		k_yield();
+	}
+}
+
+static void uart_tx_thread_create(void)
+{
+	k_thread_create(&uart_tx_thread_data, uart_tx_thread_stack,
+			K_THREAD_STACK_SIZEOF(uart_tx_thread_stack), uart_tx_thread,
+			NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
+	k_thread_name_set(&uart_tx_thread_data, "Uart TX");
+}
 
 void main(void)
 {
@@ -645,66 +605,6 @@ void main(void)
 
 	uart_cfg_read();
 	uart_irq_init();
-	tx_thread_create();
-	tx_threadII_create();
-	// k_delayed_work_init(&mqtt_send_to_broker_work, mqtt_send_to_broker);
-	// k_delayed_work_submit(&mqtt_send_to_broker_work, K_NO_WAIT);
-
-	while (1) {
-	// 	// k_mutex_lock(&my_mutex, K_FOREVER);
-	// 	k_thread_suspend(&tx_thread_data);
-
-
-	// 	// struct net_buf *get_buf = net_buf_get(&tx_queue, K_NO_WAIT);
-	// 	// if (get_buf)
-	// 	// {
-	// 	// 	struct mqtt_publish_param param;
-
-	// 	// 	mqtt_msg_parse(get_buf, &param);
-	// 	// 	mqtt_publish(&client, &param);
-	// 	// 	net_buf_unref(get_buf);
-	// 	// 	sent++;
-	// 	// 	printk("Sent: %d, Recived: %d\n\n", sent, recived);
-	// 	// }
-
-	// 	err = poll(&fds, 1, mqtt_keepalive_time_left(&client));
-	// 	if (err < 0) {
-	// 		printk("ERROR: poll %d\n", errno);
-	// 		break;
-	// 	}
-
-	// 	err = mqtt_live(&client);
-	// 	if ((err != 0) && (err != -EAGAIN)) {
-	// 		printk("ERROR: mqtt_live %d\n", err);
-	// 		break;
-	// 	}
-
-	// 	if ((fds.revents & POLLIN) == POLLIN) {
-	// 		err = mqtt_input(&client);
-	// 		if (err != 0) {
-	// 			printk("ERROR: mqtt_input %d\n", err);
-	// 			break;
-	// 		}
-	// 	}
-
-	// 	if ((fds.revents & POLLERR) == POLLERR) {
-	// 		printk("POLLERR\n");
-	// 		break;
-	// 	}
-
-	// 	if ((fds.revents & POLLNVAL) == POLLNVAL) {
-	// 		printk("POLLNVAL\n");
-	// 		break;
-	// 	}
-	// 	k_thread_resume(&tx_thread_data);
-	// 	// k_mutex_unlock(&my_mutex);
-
-	// }
-
-	// printk("Disconnecting MQTT client...\n");
-
-	// err = mqtt_disconnect(&client);
-	// if (err) {
-	// 	printk("Could not disconnect MQTT client. Error: %d\n", err);
-	}
+	uart_tx_thread_create();
+	mqtt_rx_thread_create();
 }

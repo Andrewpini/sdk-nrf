@@ -4,14 +4,14 @@
 # SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
 #
 
-config BT_MESH_THINGY52_SRV
-	bool "Thingy:52 Server"
+config BT_MESH_THINGY52_MOD
+	bool "Bluetooth Mesh Thingy:52 model"
 	select BT_MESH_NRF_MODELS
 	help
-	  Enable Mesh Thingy:52 Server model.
+	  Enable Mesh Thingy:52 model.
 
 config BT_MESH_THINGY52_CLI
-	bool "Thingy:52 Client"
+	bool "Bluetooth Mesh Thingy:52 Client model"
 	select BT_MESH_NRF_MODELS
 	help
 	  Enable Mesh Thingy:52 Client model.

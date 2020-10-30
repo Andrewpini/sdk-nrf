@@ -11,7 +11,7 @@
 #include <nrfx_pdm.h>
 #include <dk_buttons_and_leds.h>
 #include "model_handler.h"
-#include "thingy52_cli.h"
+#include "thingy52_mod.h"
 
 #define ARM_MATH_CM0PLUS
 #include <arm_math.h>
@@ -37,8 +37,8 @@ static struct device *io_expander;
 static struct mic_data mic_data = {
 	.pdm_config = NRFX_PDM_DEFAULT_CONFIG(26, 25),
 };
-static struct bt_mesh_thingy52_cli thingy52_cli[NUM_FREQ_BANDS] = {
-	[0 ... NUM_FREQ_BANDS - 1] = BT_MESH_THINGY52_CLI_INIT
+static struct bt_mesh_thingy52_mod thingy52_mod[NUM_FREQ_BANDS] = {
+	[0 ... NUM_FREQ_BANDS - 1] = BT_MESH_THINGY52_MOD_INIT(NULL)
 };
 
 static inline int nrfx_err_code_check(nrfx_err_t nrfx_err)
@@ -143,7 +143,7 @@ static void send_color_helper(int iterator, uint16_t value)
 
 	static struct bt_mesh_thingy52_rgb_msg msg = {
 		.ttl = 0,
-		.delay = 0xFFFF,
+		.duration = 0xFFFF,
 		.speaker_on = false,
 	};
 
@@ -152,19 +152,19 @@ static void send_color_helper(int iterator, uint16_t value)
 		msg.color.red = 0;
 		msg.color.green = 0;
 		msg.color.blue = value;
-		err |= bt_mesh_thingy52_cli_rgb_set(&thingy52_cli[iterator],
+		err |= bt_mesh_thingy52_mod_rgb_set(&thingy52_mod[iterator],
 						    NULL, &msg);
 	} else if (iterator == 1) {
 		msg.color.red = 0;
 		msg.color.green = value;
 		msg.color.blue = 0;
-		err |= bt_mesh_thingy52_cli_rgb_set(&thingy52_cli[iterator],
+		err |= bt_mesh_thingy52_mod_rgb_set(&thingy52_mod[iterator],
 						    NULL, &msg);
 	} else if (iterator == 2) {
 		msg.color.red = value;
 		msg.color.green = 0;
 		msg.color.blue = 0;
-		err |= bt_mesh_thingy52_cli_rgb_set(&thingy52_cli[iterator],
+		err |= bt_mesh_thingy52_mod_rgb_set(&thingy52_mod[iterator],
 						    NULL, &msg);
 	} else {
 		printk("Unknown iterator\n");
@@ -324,13 +324,13 @@ static struct bt_mesh_elem elements[] = {
 		     BT_MESH_MODEL_NONE),
 	BT_MESH_ELEM(2, BT_MESH_MODEL_NONE,
 		     BT_MESH_MODEL_LIST(
-			     BT_MESH_MODEL_THINGY52_CLI(&thingy52_cli[0]))),
+			     BT_MESH_MODEL_THINGY52_MOD(&thingy52_mod[0]))),
 	BT_MESH_ELEM(3, BT_MESH_MODEL_NONE,
 		     BT_MESH_MODEL_LIST(
-			     BT_MESH_MODEL_THINGY52_CLI(&thingy52_cli[1]))),
+			     BT_MESH_MODEL_THINGY52_MOD(&thingy52_mod[1]))),
 	BT_MESH_ELEM(4, BT_MESH_MODEL_NONE,
 		     BT_MESH_MODEL_LIST(
-			     BT_MESH_MODEL_THINGY52_CLI(&thingy52_cli[2]))),
+			     BT_MESH_MODEL_THINGY52_MOD(&thingy52_mod[2]))),
 };
 
 static const struct bt_mesh_comp comp = {

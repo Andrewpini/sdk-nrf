@@ -12,8 +12,7 @@
 #include <dk_buttons_and_leds.h>
 #include "model_handler.h"
 #include "orientation_handler.h"
-#include "thingy52_srv.h"
-#include "thingy52_cli.h"
+#include "thingy52_mod.h"
 
 #define DEFAULT_RBG_TTL 100
 #define DEFAULT_RBG_MIN_SPEED_DELAY 200
@@ -24,7 +23,7 @@ struct devices {
 	struct device *orientation;
 };
 
-struct thingy52_cli_ctrl {
+struct thingy52_ctrl {
 	struct k_delayed_work rgb_pick_work;
 	struct k_delayed_work delay_pick_work;
 	struct k_delayed_work blink_work;
@@ -35,10 +34,12 @@ struct thingy52_cli_ctrl {
 };
 
 static struct devices dev;
-static struct thingy52_cli_ctrl cli_ctrl = {
+static struct thingy52_ctrl cli_ctrl = {
 	.msg_relay_delay = DEFAULT_RBG_MIN_SPEED_DELAY
 };
-static struct bt_mesh_thingy52_cli thingy52_cli = BT_MESH_THINGY52_CLI_INIT;
+
+static struct bt_mesh_thingy52_mod thingy52_mod =
+	BT_MESH_THINGY52_MOD_INIT(NULL);
 
 static void set_large_rgb_led(struct bt_mesh_thingy52_rgb rgb)
 {
@@ -167,12 +168,12 @@ static void button_handler(uint32_t pressed, uint32_t changed)
 			struct bt_mesh_thingy52_rgb_msg msg;
 
 			msg.ttl = DEFAULT_RBG_TTL;
-			msg.delay = cli_ctrl.msg_relay_delay;
+			msg.duration = cli_ctrl.msg_relay_delay;
 			memcpy(&msg.color, &cli_ctrl.msg_rgb_color,
 			       sizeof(msg.color));
 			msg.speaker_on = cli_ctrl.msg_speaker_on;
 
-			bt_mesh_thingy52_cli_rgb_set(&thingy52_cli, NULL, &msg);
+			bt_mesh_thingy52_mod_rgb_set(&thingy52_mod, NULL, &msg);
 		}
 
 		break;
@@ -208,13 +209,13 @@ static void auto_send_work_handler(struct k_work *work)
 	pick_rgb((uint16_t)sys_rand32_get(), &rand_rgb);
 
 	msg.ttl = DEFAULT_RBG_TTL;
-	msg.delay = DEFAULT_RBG_MIN_SPEED_DELAY +
+	msg.duration = DEFAULT_RBG_MIN_SPEED_DELAY +
 		    (sys_rand32_get() % (DEFAULT_RBG_MAX_SPEED_DELAY -
 					 DEFAULT_RBG_MIN_SPEED_DELAY));
 	memcpy(&msg.color, &rand_rgb, sizeof(msg.color));
 	msg.speaker_on = cli_ctrl.msg_speaker_on;
 
-	bt_mesh_thingy52_cli_rgb_set(&thingy52_cli, NULL, &msg);
+	bt_mesh_thingy52_mod_rgb_set(&thingy52_mod, NULL, &msg);
 
 	k_delayed_work_submit(&cli_ctrl.auto_send_work,
 			      K_MSEC(DEFAULT_RBG_MAX_SPEED_DELAY));
@@ -222,8 +223,8 @@ static void auto_send_work_handler(struct k_work *work)
 
 static void rgb_pick_work_handler(struct k_work *work)
 {
-	struct thingy52_cli_ctrl *rgb = CONTAINER_OF(
-		work, struct thingy52_cli_ctrl, rgb_pick_work.work);
+	struct thingy52_ctrl *rgb = CONTAINER_OF(
+		work, struct thingy52_ctrl, rgb_pick_work.work);
 	static uint16_t val;
 
 	pick_rgb(val, &rgb->msg_rgb_color);
@@ -235,8 +236,8 @@ static void rgb_pick_work_handler(struct k_work *work)
 
 static void delay_pick_work_handler(struct k_work *work)
 {
-	struct thingy52_cli_ctrl *rgb = CONTAINER_OF(
-		work, struct thingy52_cli_ctrl, delay_pick_work.work);
+	struct thingy52_ctrl *rgb = CONTAINER_OF(
+		work, struct thingy52_ctrl, delay_pick_work.work);
 
 	if (rgb->msg_relay_delay < DEFAULT_RBG_MAX_SPEED_DELAY) {
 		rgb->msg_relay_delay += 50;
@@ -248,8 +249,8 @@ static void delay_pick_work_handler(struct k_work *work)
 
 static void blink_work_handler(struct k_work *work)
 {
-	struct thingy52_cli_ctrl *rgb =
-		CONTAINER_OF(work, struct thingy52_cli_ctrl, blink_work.work);
+	struct thingy52_ctrl *rgb =
+		CONTAINER_OF(work, struct thingy52_ctrl, blink_work.work);
 	static bool onoff;
 
 	if (onoff) {
@@ -306,13 +307,13 @@ BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 
 static struct bt_mesh_elem elements[] = {
 	BT_MESH_ELEM(1,
-		     BT_MESH_MODEL_LIST(BT_MESH_MODEL_CFG_SRV(&cfg_srv),
-					BT_MESH_MODEL_HEALTH_SRV(&health_srv,
-								 &health_pub)),
+		     BT_MESH_MODEL_LIST(
+			     BT_MESH_MODEL_CFG_SRV(&cfg_srv),
+			     BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub)),
 		     BT_MESH_MODEL_NONE),
 	BT_MESH_ELEM(
 		2, BT_MESH_MODEL_NONE,
-		BT_MESH_MODEL_LIST(BT_MESH_MODEL_THINGY52_CLI(&thingy52_cli))),
+		BT_MESH_MODEL_LIST(BT_MESH_MODEL_THINGY52_MOD(&thingy52_mod))),
 };
 
 static const struct bt_mesh_comp comp = {

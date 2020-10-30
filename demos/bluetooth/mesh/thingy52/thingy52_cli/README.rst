@@ -42,7 +42,7 @@ The following table shows the Thingy:52 client composition data for this demo:
 
 The models are used for the following purposes:
 
-* :ref:`bt_mesh_thingy52_cli_readme` instance to control RGB messages.
+* :ref:`bt_mesh_thingy52_mod_readme` instance to control RGB messages.
 * Config Server allows configurator devices to configure the node remotely.
 * Health Server provides ``attention`` callbacks that are used during provisioning to call your attention to the device.
   These callbacks trigger blinking of the LEDs.
@@ -186,7 +186,7 @@ This sample uses the following |NCS| libraries:
 
 It also uses the following custom libraries:
 
-* :ref:`bt_mesh_thingy52_cli_readme`
+* :ref:`bt_mesh_thingy52_mod_readme`
 * :ref:`bt_mesh_thingy52_orientation_handler`
 
 In addition, it uses the following Zephyr libraries:

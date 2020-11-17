@@ -56,6 +56,10 @@ zephyr_library_sources_ifdef(CONFIG_BT_MESH_LIGHT_CTL_CLI light_ctl_cli.c)
 zephyr_library_sources_ifdef(CONFIG_BT_MESH_LIGHT_TEMP_SRV light_temp_srv.c)
 zephyr_library_sources_ifdef(CONFIG_BT_MESH_LIGHT_CTL_SRV light_ctl_srv.c)
 
+zephyr_library_sources_ifdef(CONFIG_BT_MESH_LIGHT_HSL_CLI light_hsl_cli.c)
+zephyr_library_sources_ifdef(CONFIG_BT_MESH_LIGHT_HSL_SAT_SRV light_hsl_sat_srv.c)
+zephyr_library_sources_ifdef(CONFIG_BT_MESH_LIGHT_HSL_HUE_SRV light_hsl_hue_srv.c)
+
 zephyr_library_sources_ifdef(CONFIG_BT_MESH_SCENE_SRV scene_srv.c)
 zephyr_library_sources_ifdef(CONFIG_BT_MESH_SCENE_CLI scene_cli.c)
 

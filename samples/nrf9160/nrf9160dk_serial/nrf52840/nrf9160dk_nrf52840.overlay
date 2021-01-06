@@ -1,0 +1,15 @@
+//
+//  Copyright (c) 2021 Nordic Semiconductor ASA
+//
+//  SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
+//
+&uart1 {
+	compatible = "nordic,nrf-uarte";
+	current-speed = <115200>;
+	status = "okay";
+	hw-flow-control;
+	tx-pin = <17>;
+	rx-pin = <20>;
+	rts-pin = <15>;
+	cts-pin = <22>;
+};

@@ -22,6 +22,10 @@ static void bt_ready(int err)
 
 	printk("Bluetooth initialized\n");
 
+	if (IS_ENABLED(CONFIG_BT_MESH_PROXY_ADV_BEARER_DISABLE)) {
+		printk("NOTE!!!: Advertising bearer is DISABLED\n");
+	}
+
 	dk_leds_init();
 	dk_buttons_init(NULL);
 

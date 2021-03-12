@@ -1,0 +1,67 @@
+#ifndef BT_MESH_GATT_CFG_SRV_H__
+#define BT_MESH_GATT_CFG_SRV_H__
+
+#include <bluetooth/mesh/gatt_cfg.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct bt_mesh_gatt_cfg_srv;
+
+#define BT_MESH_GATT_CFG_SRV_INIT(_handlers)                                   \
+	{                                                                      \
+		.handlers = _handlers,                                         \
+	}
+
+#define BT_MESH_MODEL_GATT_CFG_SRV(_srv)                                       \
+	BT_MESH_MODEL_VND_CB(                                                  \
+		BT_MESH_GATT_CFG_VENDOR_COMPANY_ID,                            \
+		BT_MESH_GATT_CFG_SRV_VENDOR_MODEL_ID,                          \
+		_bt_mesh_gatt_cfg_srv_op, &(_srv)->pub,                        \
+		BT_MESH_MODEL_USER_DATA(struct bt_mesh_gatt_cfg_srv, _srv),    \
+		&_bt_mesh_gatt_cfg_srv_cb)
+
+struct bt_mesh_gatt_cfg_srv_handlers {
+	void (*const set)(struct bt_mesh_gatt_cfg_srv *srv,
+			  struct bt_mesh_msg_ctx *ctx,
+			  const struct bt_mesh_gatt_cfg_set *set,
+			  struct bt_mesh_gatt_cfg_status *rsp);
+
+	void (*const get)(struct bt_mesh_gatt_cfg_srv *srv,
+			  struct bt_mesh_msg_ctx *ctx,
+			  struct bt_mesh_gatt_cfg_status *rsp);
+};
+
+struct bt_mesh_gatt_cfg_srv {
+	/** Transaction ID tracker. */
+	struct bt_mesh_tid_ctx prev_transaction;
+	/** Handler function structure. */
+	const struct bt_mesh_gatt_cfg_srv_handlers *handlers;
+	/** Access model pointer. */
+	struct bt_mesh_model *model;
+	/** Publish parameters. */
+	struct bt_mesh_model_pub pub;
+	/* Publication buffer */
+	struct net_buf_simple pub_buf;
+	/* Publication data */
+	uint8_t pub_data[BT_MESH_MODEL_BUF_LEN(
+		BT_MESH_GATT_CFG_OP_STATUS, BT_MESH_GATT_CFG_MSG_MAXLEN_STATUS)];
+};
+
+int32_t bt_mesh_gatt_cfg_srv_pub(struct bt_mesh_gatt_cfg_srv *srv,
+				 struct bt_mesh_msg_ctx *ctx,
+				 const struct bt_mesh_gatt_cfg_status *status);
+
+/** @cond INTERNAL_HIDDEN */
+extern const struct bt_mesh_model_op _bt_mesh_gatt_cfg_srv_op[];
+extern const struct bt_mesh_model_cb _bt_mesh_gatt_cfg_srv_cb;
+/** @endcond */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* BT_MESH_GATT_CFG_SRV_H__ */
+
+/** @} */

@@ -61,6 +61,10 @@
 #include <bluetooth/mesh/scene_cli.h>
 #include <bluetooth/mesh/scene_srv.h>
 
+/* GATT configuration models */
+#include <bluetooth/mesh/gatt_cfg_cli.h>
+#include <bluetooth/mesh/gatt_cfg_srv.h>
+
 /** @brief Check whether the model publishes to a unicast address.
  *
  * @param[in] mod Model to check

@@ -27,6 +27,14 @@ extern "C" {
 	BT_MESH_MODEL_OP_3(0x0F, BT_MESH_GATT_CFG_VENDOR_COMPANY_ID)
 #define BT_MESH_GATT_CFG_OP_ADV_ENABLE                                             \
 	BT_MESH_MODEL_OP_3(0x10, BT_MESH_GATT_CFG_VENDOR_COMPANY_ID)
+#define BT_MESH_GATT_CFG_OP_LINK_UPDATE                                             \
+	BT_MESH_MODEL_OP_3(0x11, BT_MESH_GATT_CFG_VENDOR_COMPANY_ID)
+#define BT_MESH_GATT_CFG_OP_LINK_INIT                                             \
+	BT_MESH_MODEL_OP_3(0x12, BT_MESH_GATT_CFG_VENDOR_COMPANY_ID)
+#define BT_MESH_GATT_CFG_OP_LINK_FETCH                                             \
+	BT_MESH_MODEL_OP_3(0x13, BT_MESH_GATT_CFG_VENDOR_COMPANY_ID)
+#define BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP                                             \
+	BT_MESH_MODEL_OP_3(0x14, BT_MESH_GATT_CFG_VENDOR_COMPANY_ID)
 
 #define BT_MESH_GATT_CFG_MSG_LEN_GET 0
 #define BT_MESH_GATT_CFG_MSG_MINLEN_SET 2
@@ -37,7 +45,20 @@ extern "C" {
 #define BT_MESH_GATT_CFG_MSG_LEN_ADV_SET 2
 #define BT_MESH_GATT_CFG_MSG_LEN_CONN_SET 3
 #define BT_MESH_GATT_CFG_MSG_LEN_ADV_ENABLE 1
+#define BT_MESH_GATT_CFG_MSG_LEN_LINK_UPDATE 2
+#define BT_MESH_GATT_CFG_MSG_LEN_LINK_INIT 0
+#define BT_MESH_GATT_CFG_MSG_LEN_LINK_FETCH 0
+#define BT_MESH_GATT_CFG_MSG_MINLEN_FETCH_RSP 2
+#define BT_MESH_GATT_CFG_MSG_MAXLEN_FETCH_RSP 98
+
+
+
 /** @endcond */
+
+struct link_data {
+	uint16_t root_addr;
+	uint8_t received_cnt;
+} __packed;
 
 struct bt_mesh_gatt_cfg_set {
 	/** State to set. */

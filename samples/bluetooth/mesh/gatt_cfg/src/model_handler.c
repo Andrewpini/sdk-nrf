@@ -208,6 +208,60 @@ static int cmd_gatt_adv_enable(const struct shell *shell, size_t argc,
 	return 0;
 }
 
+static int cmd_gatt_link_init(const struct shell *shell, size_t argc,
+			       char *argv[])
+{
+	if (argc < 1) {
+		return -EINVAL;
+	}
+
+	uint16_t dst_addr = strtol(argv[1], NULL, 0);
+
+	/* Print own message to the chat. */
+	shell_print(shell, "<you>: *0x%04X*", dst_addr);
+
+
+	struct bt_mesh_msg_ctx ctx = {
+		.addr = dst_addr,
+		.send_ttl = BT_MESH_TTL_DEFAULT,
+		.app_idx = 0,
+	};
+
+	int err = bt_mesh_gatt_cfg_cli_link_init(&gatt_cfg_cli, &ctx);
+	if (err) {
+		LOG_WRN("Failed to publish message: %d", err);
+	}
+
+	return 0;
+}
+
+static int cmd_gatt_link_fetch(const struct shell *shell, size_t argc,
+			       char *argv[])
+{
+	if (argc < 1) {
+		return -EINVAL;
+	}
+
+	uint16_t dst_addr = strtol(argv[1], NULL, 0);
+
+	/* Print own message to the chat. */
+	shell_print(shell, "<you>: *0x%04X*", dst_addr);
+
+
+	struct bt_mesh_msg_ctx ctx = {
+		.addr = dst_addr,
+		.send_ttl = BT_MESH_TTL_DEFAULT,
+		.app_idx = 0,
+	};
+
+	int err = bt_mesh_gatt_cfg_cli_link_fetch(&gatt_cfg_cli, &ctx);
+	if (err) {
+		LOG_WRN("Failed to publish message: %d", err);
+	}
+
+	return 0;
+}
+
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	chat_cmds,
 	SHELL_CMD_ARG(gatt_cfg_adv_set, NULL, "Set the GATT config adv <addr> <onoff> <net_idx>",
@@ -216,6 +270,10 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      cmd_gatt_conn_cfg, 4, 0),
 	SHELL_CMD_ARG(gatt_cfg_adv_enable, NULL, "Set the state for the advertiser <dst_addr> <onoff>",
 		      cmd_gatt_adv_enable, 3, 0),
+	SHELL_CMD_ARG(gatt_cfg_link_init, NULL, "Init link mapping",
+		      cmd_gatt_link_init, 2, 0),
+	SHELL_CMD_ARG(gatt_cfg_link_fetch, NULL, "Fetch link mapping",
+		      cmd_gatt_link_fetch, 2, 0),
 	SHELL_SUBCMD_SET_END);
 
 static int cmd_chat(const struct shell *shell, size_t argc, char **argv)

@@ -59,9 +59,35 @@ static void handle_status(struct bt_mesh_model *model,
 	}
 }
 
+static void handle_fetch_rsp(struct bt_mesh_model *model,
+			  struct bt_mesh_msg_ctx *ctx,
+			  struct net_buf_simple *buf)
+{
+	if (buf->len < BT_MESH_GATT_CFG_MSG_MINLEN_FETCH_RSP ||
+	    buf->len > BT_MESH_GATT_CFG_MSG_MAXLEN_FETCH_RSP) {
+		return;
+	}
+
+	struct bt_mesh_gatt_cfg_cli *cli = model->user_data;
+
+	uint16_t root_addr = net_buf_simple_pull_le16(buf);
+	printk("Root Addr: %d\n", root_addr);
+	uint8_t itr = buf->len / sizeof(struct link_data);
+	for (size_t i = 0; i < itr; i++)
+	{
+		uint16_t addr = net_buf_simple_pull_le16(buf);
+		uint8_t cnt = net_buf_simple_pull_u8(buf);
+
+		printk("\tAddr: %d, Cnt: %d\n", addr, cnt);
+
+	}
+}
+
 const struct bt_mesh_model_op _bt_mesh_gatt_cfg_cli_op[] = {
 	{ BT_MESH_GATT_CFG_OP_STATUS, BT_MESH_GATT_CFG_MSG_MINLEN_STATUS,
 	  handle_status },
+	{ BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP, BT_MESH_GATT_CFG_MSG_MINLEN_FETCH_RSP,
+	  handle_fetch_rsp },
 	BT_MESH_MODEL_OP_END,
 };
 
@@ -139,4 +165,24 @@ int bt_mesh_gatt_cfg_cli_adv_enable(struct bt_mesh_gatt_cfg_cli *cli,
 	return model_ackd_send(cli->model, ctx, &msg,
 			       rsp ? &cli->ack_ctx : NULL,
 			       BT_MESH_GATT_CFG_OP_STATUS, rsp);
+}
+
+int bt_mesh_gatt_cfg_cli_link_init(struct bt_mesh_gatt_cfg_cli *cli,
+			  struct bt_mesh_msg_ctx *ctx)
+{
+	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_LINK_INIT,
+				 BT_MESH_GATT_CFG_MSG_LEN_LINK_INIT);
+	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_LINK_INIT);
+
+	return model_send(cli->model, ctx, &msg);
+}
+
+int bt_mesh_gatt_cfg_cli_link_fetch(struct bt_mesh_gatt_cfg_cli *cli,
+			  struct bt_mesh_msg_ctx *ctx)
+{
+	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_LINK_FETCH,
+				 BT_MESH_GATT_CFG_MSG_LEN_LINK_FETCH);
+	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_LINK_FETCH);
+
+	return model_send(cli->model, ctx, &msg);
 }

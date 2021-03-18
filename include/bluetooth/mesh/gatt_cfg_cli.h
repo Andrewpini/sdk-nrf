@@ -72,6 +72,12 @@ int bt_mesh_gatt_cfg_cli_adv_enable(struct bt_mesh_gatt_cfg_cli *cli,
 			  bool onoff,
 			  struct bt_mesh_gatt_cfg_status *rsp);
 
+int bt_mesh_gatt_cfg_cli_link_init(struct bt_mesh_gatt_cfg_cli *cli,
+			  struct bt_mesh_msg_ctx *ctx);
+
+int bt_mesh_gatt_cfg_cli_link_fetch(struct bt_mesh_gatt_cfg_cli *cli,
+			  struct bt_mesh_msg_ctx *ctx);
+
 /** @cond INTERNAL_HIDDEN */
 extern const struct bt_mesh_model_op _bt_mesh_gatt_cfg_cli_op[];
 extern const struct bt_mesh_model_cb _bt_mesh_gatt_cfg_cli_cb;

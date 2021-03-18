@@ -47,6 +47,13 @@ struct bt_mesh_gatt_cfg_srv {
 	/* Publication data */
 	uint8_t pub_data[BT_MESH_MODEL_BUF_LEN(
 		BT_MESH_GATT_CFG_OP_STATUS, BT_MESH_GATT_CFG_MSG_MAXLEN_STATUS)];
+
+	struct k_delayed_work l_data_work;
+	uint8_t l_data_msg_cnt;
+	bool link_update_active;
+	uint8_t l_data_idx;
+	struct link_data l_data[32];
+
 };
 
 int32_t bt_mesh_gatt_cfg_srv_pub(struct bt_mesh_gatt_cfg_srv *srv,

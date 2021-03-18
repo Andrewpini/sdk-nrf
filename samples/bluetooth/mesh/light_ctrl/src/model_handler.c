@@ -158,10 +158,23 @@ static const struct bt_mesh_comp comp = {
 	.elem_count = ARRAY_SIZE(elements),
 };
 
+static struct k_delayed_work test_work;
+
+static void test(struct k_work *work)
+{
+	struct bt_mesh_lightness_status status = {0};
+	printk("test\n");
+	bt_mesh_lightness_srv_pub(&my_ctx.lightness_srv,
+			      NULL,
+			      &status);
+	k_delayed_work_submit(&test_work, K_MSEC(1000));
+}
+
 const struct bt_mesh_comp *model_handler_init(void)
 {
 	int err;
 
+	k_delayed_work_init(&test_work, test);
 	k_delayed_work_init(&attention_blink_work, attention_blink);
 	k_delayed_work_init(&my_ctx.per_work, periodic_led_work);
 
@@ -169,6 +182,7 @@ const struct bt_mesh_comp *model_handler_init(void)
 	if (!err) {
 		printk("Successfully enabled LC server\n");
 	}
+	k_delayed_work_submit(&test_work, K_MSEC(1000));
 
 	return &comp;
 }

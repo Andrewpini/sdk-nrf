@@ -267,39 +267,6 @@ static void handle_link_init(struct bt_mesh_model *model,
 	k_delayed_work_submit(&srv->l_data_work, K_MSEC(1000));
 }
 
-// static void link_data_encode(struct bt_mesh_gatt_cfg_srv *srv,
-// 			     struct net_buf_simple *buf)
-// {
-// 	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP);
-
-// 	net_buf_simple_add_le16(&msg, bt_mesh_primary_addr());
-// 	for (size_t i = 0; i < ARRAY_SIZE(srv->l_data); i++)
-// 	{
-// 		net_buf_simple_add_le16(&msg, srv->l_data[i].root_addr);
-// 		net_buf_simple_add_u8(&msg, srv->l_data[i].received_cnt);
-// 	}
-// }
-
-// static void rsp_status(struct bt_mesh_gatt_cfg_srv *srv,
-// 		       struct bt_mesh_msg_ctx *rx_ctx,
-// 		       const struct bt_mesh_onoff_status *status)
-// {
-// 	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP,
-// 				 BT_MESH_GATT_CFG_MSG_MAXLEN_FETCH_RSP);
-// 	// link_data_encode(srv, &msg, status);
-
-// 	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP);
-
-// 	net_buf_simple_add_le16(&msg, bt_mesh_primary_addr());
-// 	for (size_t i = 0; i < ARRAY_SIZE(srv->l_data); i++)
-// 	{
-// 		net_buf_simple_add_le16(&msg, srv->l_data[i].root_addr);
-// 		net_buf_simple_add_u8(&msg, srv->l_data[i].received_cnt);
-// 	}
-
-// 	(void)bt_mesh_model_send(srv->model, rx_ctx, &msg, NULL, NULL);
-// }
-
 static void handle_link_fetch(struct bt_mesh_model *model,
 			     struct bt_mesh_msg_ctx *ctx,
 			     struct net_buf_simple *buf)
@@ -307,13 +274,12 @@ static void handle_link_fetch(struct bt_mesh_model *model,
 	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_LINK_FETCH) {
 		return;
 	}
-	printk("FETCH\n");
+
 	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
 
 	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP,
 				 2 + (srv->l_data_idx * sizeof(struct link_data)));
-				 printk("struct: %d\n", sizeof(struct link_data));
-	// link_data_encode(srv, &msg, status);
+
 
 	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP);
 
@@ -322,7 +288,6 @@ static void handle_link_fetch(struct bt_mesh_model *model,
 	{
 		net_buf_simple_add_le16(&msg, srv->l_data[i].root_addr);
 		net_buf_simple_add_u8(&msg, srv->l_data[i].received_cnt);
-		printk("I: %d\n", i);
 	}
 
 	(void)bt_mesh_model_send(srv->model, ctx, &msg, NULL, NULL);

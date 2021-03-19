@@ -69,17 +69,32 @@ static void handle_fetch_rsp(struct bt_mesh_model *model,
 	}
 
 	struct bt_mesh_gatt_cfg_cli *cli = model->user_data;
+	struct link_data_entry entry = {0};
 
-	uint16_t root_addr = net_buf_simple_pull_le16(buf);
-	printk("Root Addr: %d\n", root_addr);
-	uint8_t itr = buf->len / sizeof(struct link_data);
-	for (size_t i = 0; i < itr; i++)
+	// uint16_t root_addr = net_buf_simple_pull_le16(buf);
+	// printk("Root Addr: %d\n", root_addr);
+	// entry.src = root_addr;
+	entry.src = net_buf_simple_pull_le16(buf);
+
+	// uint8_t itr = buf->len / sizeof(struct link_data);
+	entry.entry_cnt = buf->len / sizeof(struct link_data);
+	for (size_t i = 0; i < entry.entry_cnt; i++)
 	{
-		uint16_t addr = net_buf_simple_pull_le16(buf);
-		uint8_t cnt = net_buf_simple_pull_u8(buf);
+		// uint16_t addr = net_buf_simple_pull_le16(buf);
+		// uint8_t cnt = net_buf_simple_pull_u8(buf);
+		// printk("\tAddr: %d, Cnt: %d\n", addr, cnt);
+		// entry.data[i].root_addr = addr;
+		// entry.data[i].received_cnt = cnt;
+		entry.data[i].root_addr = net_buf_simple_pull_le16(buf);
+		entry.data[i].received_cnt = net_buf_simple_pull_u8(buf);
+	}
 
-		printk("\tAddr: %d, Cnt: %d\n", addr, cnt);
+	if (model_ack_match(&cli->ack_ctx, BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP, ctx)) {
+		struct link_data_entry *rsp =
+			(struct link_data_entry *)cli->ack_ctx.user_data;
 
+		*rsp = entry;
+		model_ack_rx(&cli->ack_ctx);
 	}
 }
 
@@ -178,11 +193,12 @@ int bt_mesh_gatt_cfg_cli_link_init(struct bt_mesh_gatt_cfg_cli *cli,
 }
 
 int bt_mesh_gatt_cfg_cli_link_fetch(struct bt_mesh_gatt_cfg_cli *cli,
-			  struct bt_mesh_msg_ctx *ctx)
+			  struct bt_mesh_msg_ctx *ctx, struct link_data_entry *entry)
 {
 	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_LINK_FETCH,
 				 BT_MESH_GATT_CFG_MSG_LEN_LINK_FETCH);
 	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_LINK_FETCH);
 
-	return model_send(cli->model, ctx, &msg);
+	return model_ackd_send(cli->model, ctx, &msg, &cli->ack_ctx,
+			       BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP, entry);
 }

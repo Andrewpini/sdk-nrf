@@ -76,7 +76,7 @@ int bt_mesh_gatt_cfg_cli_link_init(struct bt_mesh_gatt_cfg_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx);
 
 int bt_mesh_gatt_cfg_cli_link_fetch(struct bt_mesh_gatt_cfg_cli *cli,
-			  struct bt_mesh_msg_ctx *ctx);
+			  struct bt_mesh_msg_ctx *ctx, struct link_data_entry *entry);
 
 /** @cond INTERNAL_HIDDEN */
 extern const struct bt_mesh_model_op _bt_mesh_gatt_cfg_cli_op[];

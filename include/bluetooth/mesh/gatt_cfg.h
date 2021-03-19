@@ -60,6 +60,12 @@ struct link_data {
 	uint8_t received_cnt;
 } __packed;
 
+struct link_data_entry {
+	uint16_t src;
+	uint16_t entry_cnt;
+	struct link_data data[32];
+};
+
 struct bt_mesh_gatt_cfg_set {
 	/** State to set. */
 	bool on_off;

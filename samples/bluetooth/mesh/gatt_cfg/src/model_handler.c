@@ -254,10 +254,18 @@ static int cmd_gatt_link_fetch(const struct shell *shell, size_t argc,
 		.app_idx = 0,
 	};
 
-	int err = bt_mesh_gatt_cfg_cli_link_fetch(&gatt_cfg_cli, &ctx);
+	struct link_data_entry entry = {0};
+	int err = bt_mesh_gatt_cfg_cli_link_fetch(&gatt_cfg_cli, &ctx, &entry);
 	if (err) {
 		LOG_WRN("Failed to publish message: %d", err);
 	}
+
+	printk("Root Addr: %d\n", entry.src);
+	for (size_t i = 0; i < entry.entry_cnt; i++)
+	{
+		printk("\tAddr: %d, Cnt: %d\n", entry.data[i].root_addr, entry.data[i].received_cnt);
+	}
+
 
 	return 0;
 }
@@ -303,4 +311,5 @@ const struct bt_mesh_comp *model_handler_init(void)
 	shell_print(chat_shell, ">>> Bluetooth Mesh Chat sample <<<");
 
 	return &comp;
+
 }

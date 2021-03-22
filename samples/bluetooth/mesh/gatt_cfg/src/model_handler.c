@@ -14,7 +14,6 @@
 #include <shell/shell_uart.h>
 
 #include "model_handler.h"
-
 #include <logging/log.h>
 LOG_MODULE_DECLARE(chat);
 
@@ -235,6 +234,25 @@ static int cmd_gatt_link_init(const struct shell *shell, size_t argc,
 	return 0;
 }
 
+static const char *hex_real(const void *buf, size_t len)
+{
+	static const char hex[] = "0123456789abcdef";
+	static char str[129];
+	const uint8_t *b = buf;
+	size_t i;
+
+	len = MIN(len, (sizeof(str) - 1) / 2);
+
+	for (i = 0; i < len; i++) {
+		str[i * 2]     = hex[b[i] >> 4];
+		str[i * 2 + 1] = hex[b[i] & 0xf];
+	}
+
+	str[i * 2] = '\0';
+
+	return str;
+}
+
 static int cmd_gatt_link_fetch(const struct shell *shell, size_t argc,
 			       char *argv[])
 {
@@ -247,6 +265,11 @@ static int cmd_gatt_link_fetch(const struct shell *shell, size_t argc,
 	/* Print own message to the chat. */
 	shell_print(shell, "<you>: *0x%04X*", dst_addr);
 
+	// uint8_t test_array[9] = {1,2,3,4,5,6,7,8,0};
+	// printk("%s\n", hex_real(test_array, sizeof(test_array)));
+	// char lladdr[40] = {0};
+	// sprintf(lladdr,"1234-%d-%d-%d-%d-%d-%d-%d-", 2, 11, 1, 22, 2, 33, 3);
+	// printk("%s\n", lladdr);
 
 	struct bt_mesh_msg_ctx ctx = {
 		.addr = dst_addr,
@@ -263,7 +286,11 @@ static int cmd_gatt_link_fetch(const struct shell *shell, size_t argc,
 	printk("Root Addr: %d\n", entry.src);
 	for (size_t i = 0; i < entry.entry_cnt; i++)
 	{
-		printk("\tAddr: %d, Cnt: %d\n", entry.data[i].root_addr, entry.data[i].received_cnt);
+		// printk("\tAddr: %d, Cnt: %d\n", entry.data[i].root_addr, entry.data[i].received_cnt);
+
+		char lladdr[124] = {0};
+		sprintf(lladdr,"%d-%d-%d-%d-", 1234, entry.src, entry.data[i].root_addr, entry.data[i].received_cnt);
+		printk("%s\n", lladdr);
 	}
 
 

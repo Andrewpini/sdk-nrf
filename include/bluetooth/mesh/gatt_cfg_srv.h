@@ -57,8 +57,8 @@ struct bt_mesh_gatt_cfg_srv {
 };
 
 int32_t bt_mesh_gatt_cfg_srv_pub(struct bt_mesh_gatt_cfg_srv *srv,
-				 struct bt_mesh_msg_ctx *ctx,
-				 const struct bt_mesh_gatt_cfg_status *status);
+			    struct bt_mesh_msg_ctx *ctx,
+			    enum bt_mesh_gatt_cfg_status_type status);
 
 /** @cond INTERNAL_HIDDEN */
 extern const struct bt_mesh_model_op _bt_mesh_gatt_cfg_srv_op[];

@@ -9,9 +9,6 @@
 static int32_t link_update_send(struct bt_mesh_gatt_cfg_srv *srv);
 static void l_data_print(struct bt_mesh_gatt_cfg_srv *srv);
 
-// static struct link_data l_data[32] = {0};
-// static uint8_t srv->l_data_idx;
-// static bool link_update_active;
 
 static void l_data_cb(struct k_work *work)
 {
@@ -23,6 +20,7 @@ static void l_data_cb(struct k_work *work)
 		k_delayed_work_submit(&srv->l_data_work, K_MSEC(200));
 	} else {
 		l_data_print(srv);
+		bt_mesh_gatt_cfg_srv_pub(srv, NULL, BT_MESH_GATT_CFG_LINK_UPDATE_ENDED);
 	}
 }
 
@@ -52,101 +50,21 @@ static void l_data_print(struct bt_mesh_gatt_cfg_srv *srv)
 }
 
 static void encode_status(struct net_buf_simple *buf,
-			  const struct bt_mesh_gatt_cfg_status *status)
+			  enum bt_mesh_gatt_cfg_status_type status)
 {
 	bt_mesh_model_msg_init(buf, BT_MESH_GATT_CFG_OP_STATUS);
-	net_buf_simple_add_u8(buf, !!status->present_on_off);
-
-	if (status->remaining_time != 0) {
-		net_buf_simple_add_u8(buf, status->target_on_off);
-		net_buf_simple_add_u8(
-			buf, model_transition_encode(status->remaining_time));
-	}
+	net_buf_simple_add_u8(buf, status);
 }
 
 static void rsp_status(struct bt_mesh_model *model,
 		       struct bt_mesh_msg_ctx *rx_ctx,
-		       const struct bt_mesh_gatt_cfg_status *status)
+		       enum bt_mesh_gatt_cfg_status_type status)
 {
 	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_STATUS,
-				 BT_MESH_GATT_CFG_MSG_MAXLEN_STATUS);
+				 BT_MESH_GATT_CFG_MSG_LEN_STATUS);
 	encode_status(&msg, status);
 
 	(void)bt_mesh_model_send(model, rx_ctx, &msg, NULL, NULL);
-}
-
-static void handle_get(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
-		       struct net_buf_simple *buf)
-{
-	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_GET) {
-		return;
-	}
-
-	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
-	struct bt_mesh_gatt_cfg_status status = { 0 };
-
-	srv->handlers->get(srv, ctx, &status);
-
-	rsp_status(model, ctx, &status);
-}
-
-static void gatt_cfg_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
-		      struct net_buf_simple *buf, bool ack)
-{
-	if (buf->len != BT_MESH_GATT_CFG_MSG_MINLEN_SET &&
-	    buf->len != BT_MESH_GATT_CFG_MSG_MAXLEN_SET) {
-		return;
-	}
-
-	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
-	struct bt_mesh_gatt_cfg_status status = { 0 };
-	struct bt_mesh_model_transition transition;
-	struct bt_mesh_gatt_cfg_set set;
-
-	uint8_t on_off = net_buf_simple_pull_u8(buf);
-	uint8_t tid = net_buf_simple_pull_u8(buf);
-	printk("\n Incoming Set Message gatt_cfg: %s\n\n", (on_off ? "ON" : "OFF"));
-	if (on_off > 1) {
-		return;
-	}
-
-	set.on_off = on_off;
-
-	if (tid_check_and_update(&srv->prev_transaction, tid, ctx) != 0) {
-		/* If this is the same transaction, we don't need to send it
-		 * to the app, but we still have to respond with a status.
-		 */
-		srv->handlers->get(srv, NULL, &status);
-		goto respond;
-	}
-
-	if (buf->len == 2) {
-		model_transition_buf_pull(buf, &transition);
-	}
-
-	set.transition = &transition;
-
-	srv->handlers->set(srv, ctx, &set, &status);
-
-	(void)bt_mesh_gatt_cfg_srv_pub(srv, NULL, &status);
-
-respond:
-	if (ack) {
-		rsp_status(model, ctx, &status);
-	}
-}
-
-static void handle_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
-		       struct net_buf_simple *buf)
-{
-	gatt_cfg_set(model, ctx, buf, true);
-}
-
-static void handle_set_unack(struct bt_mesh_model *model,
-			     struct bt_mesh_msg_ctx *ctx,
-			     struct net_buf_simple *buf)
-{
-	gatt_cfg_set(model, ctx, buf, false);
 }
 
 static void handle_adv_set(struct bt_mesh_model *model,
@@ -179,9 +97,9 @@ static void handle_adv_set(struct bt_mesh_model *model,
 	// 	bt_mesh_proxy_identity_stop(sub);
 	// }
 
-	(void)bt_mesh_gatt_cfg_srv_pub(srv, NULL, &status);
+	// (void)bt_mesh_gatt_cfg_srv_pub(srv, NULL, &status);
 
-	rsp_status(model, ctx, &status);
+	// rsp_status(model, ctx, &status);
 
 	printk("Setting the advertising value, net_id:%d, onoff: %d\n", set.net_id, set.on_off);
 }
@@ -204,9 +122,9 @@ static void handle_conn_set(struct bt_mesh_model *model,
 	// bt_mesh_proxy_cli_node_id_ctx_set((struct node_id_lookup *)&set);
 
 	printk("CONNECTION\n");
-	(void)bt_mesh_gatt_cfg_srv_pub(srv, NULL, &status);
+	// (void)bt_mesh_gatt_cfg_srv_pub(srv, NULL, &status);
 
-	rsp_status(model, ctx, &status);
+	// rsp_status(model, ctx, &status);
 
 }
 
@@ -227,9 +145,9 @@ static void handle_adv_enable(struct bt_mesh_model *model,
 	}
 	// bt_mesh_proxy_cli_adv_set(on_off);
 
-	(void)bt_mesh_gatt_cfg_srv_pub(srv, NULL, &status);
+	// (void)bt_mesh_gatt_cfg_srv_pub(srv, NULL, &status);
 
-	rsp_status(model, ctx, &status);
+	// rsp_status(model, ctx, &status);
 
 	printk("Turning the advertiser %s\n", (on_off ? "On" : "OFF"));
 }
@@ -246,7 +164,7 @@ static void handle_link_update(struct bt_mesh_model *model,
 	uint16_t addr = net_buf_simple_pull_le16(buf);
 
 
-	if (srv->link_update_active)
+	if (srv->link_update_active && (addr != bt_mesh_primary_addr()))
 	{
 		l_data_put(srv, addr);
 	}
@@ -262,9 +180,15 @@ static void handle_link_init(struct bt_mesh_model *model,
 	}
 
 	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
-	srv->l_data_msg_cnt = 10;
+
+	memset(srv->l_data, 0, sizeof(srv->l_data));
+	srv->l_data_msg_cnt = net_buf_simple_pull_u8(buf);
 	srv->link_update_active = true;
+	srv->l_data_idx = 0;
+
 	k_delayed_work_submit(&srv->l_data_work, K_MSEC(1000));
+
+	rsp_status(model, ctx, BT_MESH_GATT_CFG_LINK_UPDATE_STARTED);
 }
 
 static void handle_link_fetch(struct bt_mesh_model *model,
@@ -294,11 +218,38 @@ static void handle_link_fetch(struct bt_mesh_model *model,
 
 }
 
+static void handle_echo(struct bt_mesh_model *model,
+			     struct bt_mesh_msg_ctx *ctx,
+			     struct net_buf_simple *buf)
+{
+	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_ECHO) {
+		return;
+	}
+
+	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
+
+	// BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP,
+	// 			 2 + (srv->l_data_idx * sizeof(struct link_data)));
+
+
+	// bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP);
+
+	// net_buf_simple_add_le16(&msg, bt_mesh_primary_addr());
+	// for (size_t i = 0; i < srv->l_data_idx; i++)
+	// {
+	// 	net_buf_simple_add_le16(&msg, srv->l_data[i].root_addr);
+	// 	net_buf_simple_add_u8(&msg, srv->l_data[i].received_cnt);
+	// }
+
+	// (void)bt_mesh_model_send(srv->model, ctx, &msg, NULL, NULL);
+
+}
+
 const struct bt_mesh_model_op _bt_mesh_gatt_cfg_srv_op[] = {
-	{ BT_MESH_GATT_CFG_OP_GET, BT_MESH_GATT_CFG_MSG_LEN_GET, handle_get },
-	{ BT_MESH_GATT_CFG_OP_SET, BT_MESH_GATT_CFG_MSG_MINLEN_SET, handle_set },
-	{ BT_MESH_GATT_CFG_OP_SET_UNACK, BT_MESH_GATT_CFG_MSG_MINLEN_SET,
-	  handle_set_unack },
+	// { BT_MESH_GATT_CFG_OP_GET, BT_MESH_GATT_CFG_MSG_LEN_GET, handle_get },
+	// { BT_MESH_GATT_CFG_OP_SET, BT_MESH_GATT_CFG_MSG_MINLEN_SET, handle_set },
+	// { BT_MESH_GATT_CFG_OP_SET_UNACK, BT_MESH_GATT_CFG_MSG_MINLEN_SET,
+	//   handle_set_unack },
 	{ BT_MESH_GATT_CFG_OP_ADV_SET, BT_MESH_GATT_CFG_MSG_LEN_ADV_SET,
 	  handle_adv_set },
 	{ BT_MESH_GATT_CFG_OP_CONN_SET, BT_MESH_GATT_CFG_MSG_LEN_CONN_SET,
@@ -311,6 +262,8 @@ const struct bt_mesh_model_op _bt_mesh_gatt_cfg_srv_op[] = {
 	  handle_link_init },
 	{ BT_MESH_GATT_CFG_OP_LINK_FETCH, BT_MESH_GATT_CFG_MSG_LEN_LINK_FETCH,
 	  handle_link_fetch },
+	{ BT_MESH_GATT_CFG_OP_ECHO, BT_MESH_GATT_CFG_MSG_LEN_ECHO,
+	  handle_echo },
 	BT_MESH_MODEL_OP_END,
 };
 
@@ -319,8 +272,8 @@ static int update_handler(struct bt_mesh_model *model)
 	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
 	struct bt_mesh_gatt_cfg_status status = { 0 };
 
-	srv->handlers->get(srv, NULL, &status);
-	encode_status(model->pub->msg, &status);
+	// srv->handlers->get(srv, NULL, &status);
+	// encode_status(model->pub->msg, &status);
 
 	return 0;
 }
@@ -351,10 +304,10 @@ const struct bt_mesh_model_cb _bt_mesh_gatt_cfg_srv_cb = {
 
 int32_t bt_mesh_gatt_cfg_srv_pub(struct bt_mesh_gatt_cfg_srv *srv,
 			    struct bt_mesh_msg_ctx *ctx,
-			    const struct bt_mesh_gatt_cfg_status *status)
+			    enum bt_mesh_gatt_cfg_status_type status)
 {
 	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_STATUS,
-				 BT_MESH_GATT_CFG_MSG_MAXLEN_STATUS);
+				 BT_MESH_GATT_CFG_MSG_LEN_STATUS);
 	encode_status(&msg, status);
 	return model_send(srv->model, ctx, &msg);
 }

@@ -25,7 +25,7 @@ struct bt_mesh_gatt_cfg_cli;
 struct bt_mesh_gatt_cfg_cli {
 	void (*const status_handler)(struct bt_mesh_gatt_cfg_cli *cli,
 				     struct bt_mesh_msg_ctx *ctx,
-				     const struct bt_mesh_gatt_cfg_status *status);
+				     enum bt_mesh_gatt_cfg_status_type status);
 	/** Current Transaction ID. */
 	uint8_t tid;
 	/** Response context for tracking acknowledged messages. */
@@ -73,10 +73,13 @@ int bt_mesh_gatt_cfg_cli_adv_enable(struct bt_mesh_gatt_cfg_cli *cli,
 			  struct bt_mesh_gatt_cfg_status *rsp);
 
 int bt_mesh_gatt_cfg_cli_link_init(struct bt_mesh_gatt_cfg_cli *cli,
-			  struct bt_mesh_msg_ctx *ctx);
+			  struct bt_mesh_msg_ctx *ctx, uint8_t msg_cnt);
 
 int bt_mesh_gatt_cfg_cli_link_fetch(struct bt_mesh_gatt_cfg_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx, struct link_data_entry *entry);
+
+int bt_mesh_gatt_cfg_cli_link_echo(struct bt_mesh_gatt_cfg_cli *cli,
+			  struct bt_mesh_msg_ctx *ctx);
 
 /** @cond INTERNAL_HIDDEN */
 extern const struct bt_mesh_model_op _bt_mesh_gatt_cfg_cli_op[];

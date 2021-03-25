@@ -19,6 +19,13 @@ LOG_MODULE_DECLARE(chat);
 
 static const struct shell *chat_shell;
 
+#define SHELL_PROXY_INTERFACE_LINK_ENTRY 6661
+#define SHELL_PROXY_INTERFACE_LINK_UPDATE_STARTED 6662
+#define SHELL_PROXY_INTERFACE_LINK_UPDATE_ENDED 6663
+#define SHELL_PROXY_INTERFACE_LINK_CNT 6664
+#define SHELL_PROXY_INTERFACE_LINK_ENTRY_STATUS 6665
+
+
 /******************************************************************************/
 /*************************** Health server setup ******************************/
 /******************************************************************************/
@@ -69,9 +76,26 @@ BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 
 static void status_handler(struct bt_mesh_gatt_cfg_cli *cli,
 			   struct bt_mesh_msg_ctx *ctx,
-			   const struct bt_mesh_gatt_cfg_status *status)
+			   enum bt_mesh_gatt_cfg_status_type status)
 {
-	printk("Status\n");
+	char lladdr[124] = {0};
+	switch (status)
+	{
+	case BT_MESH_GATT_CFG_LINK_UPDATE_STARTED:
+		printk("BT_MESH_GATT_CFG_LINK_UPDATE_STARTED %d\n", ctx->addr);
+		sprintf(lladdr,"%d-%d-", SHELL_PROXY_INTERFACE_LINK_UPDATE_STARTED, ctx->addr);
+		printk("%s\n", lladdr);
+		break;
+
+	case BT_MESH_GATT_CFG_LINK_UPDATE_ENDED:
+		printk("BT_MESH_GATT_CFG_LINK_UPDATE_ENDED %d\n", ctx->addr);
+		sprintf(lladdr,"%d-%d-", SHELL_PROXY_INTERFACE_LINK_UPDATE_ENDED, ctx->addr);
+		printk("%s\n", lladdr);
+		break;
+
+	default:
+		break;
+	}
 }
 
 static struct bt_mesh_gatt_cfg_cli gatt_cfg_cli =
@@ -215,10 +239,12 @@ static int cmd_gatt_link_init(const struct shell *shell, size_t argc,
 	}
 
 	uint16_t dst_addr = strtol(argv[1], NULL, 0);
+	uint8_t msg_cnt = strtol(argv[2], NULL, 0);
 
 	/* Print own message to the chat. */
 	shell_print(shell, "<you>: *0x%04X*", dst_addr);
 
+	printk("%d-%d-\n", SHELL_PROXY_INTERFACE_LINK_CNT, msg_cnt);
 
 	struct bt_mesh_msg_ctx ctx = {
 		.addr = dst_addr,
@@ -226,7 +252,7 @@ static int cmd_gatt_link_init(const struct shell *shell, size_t argc,
 		.app_idx = 0,
 	};
 
-	int err = bt_mesh_gatt_cfg_cli_link_init(&gatt_cfg_cli, &ctx);
+	int err = bt_mesh_gatt_cfg_cli_link_init(&gatt_cfg_cli, &ctx, msg_cnt);
 	if (err) {
 		LOG_WRN("Failed to publish message: %d", err);
 	}
@@ -265,12 +291,6 @@ static int cmd_gatt_link_fetch(const struct shell *shell, size_t argc,
 	/* Print own message to the chat. */
 	shell_print(shell, "<you>: *0x%04X*", dst_addr);
 
-	// uint8_t test_array[9] = {1,2,3,4,5,6,7,8,0};
-	// printk("%s\n", hex_real(test_array, sizeof(test_array)));
-	// char lladdr[40] = {0};
-	// sprintf(lladdr,"1234-%d-%d-%d-%d-%d-%d-%d-", 2, 11, 1, 22, 2, 33, 3);
-	// printk("%s\n", lladdr);
-
 	struct bt_mesh_msg_ctx ctx = {
 		.addr = dst_addr,
 		.send_ttl = BT_MESH_TTL_DEFAULT,
@@ -289,25 +309,26 @@ static int cmd_gatt_link_fetch(const struct shell *shell, size_t argc,
 		// printk("\tAddr: %d, Cnt: %d\n", entry.data[i].root_addr, entry.data[i].received_cnt);
 
 		char lladdr[124] = {0};
-		sprintf(lladdr,"%d-%d-%d-%d-", 1234, entry.src, entry.data[i].root_addr, entry.data[i].received_cnt);
+		sprintf(lladdr,"%d-%d-%d-%d-", SHELL_PROXY_INTERFACE_LINK_ENTRY, entry.src, entry.data[i].root_addr, entry.data[i].received_cnt);
 		printk("%s\n", lladdr);
 	}
 
+	printk("%d-%d-\n", SHELL_PROXY_INTERFACE_LINK_ENTRY_STATUS, entry.entry_cnt);
 
 	return 0;
 }
 
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	chat_cmds,
-	SHELL_CMD_ARG(gatt_cfg_adv_set, NULL, "Set the GATT config adv <addr> <onoff> <net_idx>",
+	SHELL_CMD_ARG(adv_set, NULL, "Set the GATT config adv <addr> <onoff> <net_idx>",
 		      cmd_gatt_cfg, 4, 0),
-	SHELL_CMD_ARG(gatt_cfg_conn_set, NULL, "Set the GATT config <dst_addr> <addr> <net_idx>",
+	SHELL_CMD_ARG(conn_set, NULL, "Set the GATT config <dst_addr> <addr> <net_idx>",
 		      cmd_gatt_conn_cfg, 4, 0),
-	SHELL_CMD_ARG(gatt_cfg_adv_enable, NULL, "Set the state for the advertiser <dst_addr> <onoff>",
+	SHELL_CMD_ARG(adv_enable, NULL, "Set the state for the advertiser <dst_addr> <onoff>",
 		      cmd_gatt_adv_enable, 3, 0),
-	SHELL_CMD_ARG(gatt_cfg_link_init, NULL, "Init link mapping",
-		      cmd_gatt_link_init, 2, 0),
-	SHELL_CMD_ARG(gatt_cfg_link_fetch, NULL, "Fetch link mapping",
+	SHELL_CMD_ARG(link_init, NULL, "Init link mapping",
+		      cmd_gatt_link_init, 3, 0),
+	SHELL_CMD_ARG(link_fetch, NULL, "Fetch link mapping",
 		      cmd_gatt_link_fetch, 2, 0),
 	SHELL_SUBCMD_SET_END);
 

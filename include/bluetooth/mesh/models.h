@@ -63,6 +63,10 @@
 #include <bluetooth/mesh/scheduler_cli.h>
 #include <bluetooth/mesh/scheduler_srv.h>
 
+#include <bluetooth/mesh/gatt_cfg_cli.h>
+#include <bluetooth/mesh/gatt_cfg_srv.h>
+
+
 /** @brief Check whether the model publishes to a unicast address.
  *
  * @param[in] model Model to check

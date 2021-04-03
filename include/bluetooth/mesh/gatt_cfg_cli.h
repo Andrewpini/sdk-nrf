@@ -15,12 +15,11 @@ struct bt_mesh_gatt_cfg_cli;
 	}
 
 #define BT_MESH_MODEL_GATT_CFG_CLI(_cli)                                       \
-	BT_MESH_MODEL_VND_CB(                                                  \
-		BT_MESH_GATT_CFG_VENDOR_COMPANY_ID,                            \
-		BT_MESH_GATT_CFG_CLI_VENDOR_MODEL_ID,                          \
-		_bt_mesh_gatt_cfg_cli_op, &(_cli)->pub,                        \
-		BT_MESH_MODEL_USER_DATA(struct bt_mesh_gatt_cfg_cli, _cli),    \
-		&_bt_mesh_gatt_cfg_cli_cb)
+	BT_MESH_MODEL_CB(BT_MESH_GATT_CFG_CLI_VENDOR_MODEL_ID,                 \
+			 _bt_mesh_gatt_cfg_cli_op, &(_cli)->pub,               \
+			 BT_MESH_MODEL_USER_DATA(struct bt_mesh_gatt_cfg_cli,  \
+						 _cli),                        \
+			 &_bt_mesh_gatt_cfg_cli_cb)
 
 struct bt_mesh_gatt_cfg_cli {
 	void (*const status_handler)(struct bt_mesh_gatt_cfg_cli *cli,
@@ -35,8 +34,8 @@ struct bt_mesh_gatt_cfg_cli {
 	/* Publication buffer */
 	struct net_buf_simple pub_buf;
 	/* Publication data */
-	uint8_t pub_data[BT_MESH_MODEL_BUF_LEN(BT_MESH_GATT_CFG_OP_SET,
-					       BT_MESH_GATT_CFG_MSG_MAXLEN_SET)];
+	uint8_t pub_data[BT_MESH_MODEL_BUF_LEN(BT_MESH_GATT_CFG_OP_ADV_SET,
+					       BT_MESH_GATT_CFG_MSG_LEN_ADV_SET)];
 	/** Access model pointer. */
 	struct bt_mesh_model *model;
 };
@@ -78,7 +77,7 @@ int bt_mesh_gatt_cfg_cli_link_init(struct bt_mesh_gatt_cfg_cli *cli,
 int bt_mesh_gatt_cfg_cli_link_fetch(struct bt_mesh_gatt_cfg_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx, struct link_data_entry *entry);
 
-int bt_mesh_gatt_cfg_cli_link_echo(struct bt_mesh_gatt_cfg_cli *cli,
+int bt_mesh_gatt_cfg_cli_conn_reset(struct bt_mesh_gatt_cfg_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx);
 
 /** @cond INTERNAL_HIDDEN */

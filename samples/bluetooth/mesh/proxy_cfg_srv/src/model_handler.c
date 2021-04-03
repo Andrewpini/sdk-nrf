@@ -69,8 +69,10 @@ static struct bt_mesh_elem elements[] = {
 	BT_MESH_ELEM(
 		1, BT_MESH_MODEL_LIST(
 			BT_MESH_MODEL_CFG_SRV,
-			BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub)),
-		BT_MESH_MODEL_LIST(BT_MESH_MODEL_GATT_CFG_SRV(&gatt_cfg_srv))),
+			BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
+			BT_MESH_MODEL_GATT_CFG_SRV(&gatt_cfg_srv)),
+					     BT_MESH_MODEL_NONE),
+		// BT_MESH_MODEL_LIST(BT_MESH_MODEL_GATT_CFG_SRV(&gatt_cfg_srv))),
 
 
 };

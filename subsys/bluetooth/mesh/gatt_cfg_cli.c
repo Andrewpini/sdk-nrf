@@ -191,12 +191,12 @@ int bt_mesh_gatt_cfg_cli_link_fetch(struct bt_mesh_gatt_cfg_cli *cli,
 			       BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP, entry);
 }
 
-int bt_mesh_gatt_cfg_cli_link_echo(struct bt_mesh_gatt_cfg_cli *cli,
+int bt_mesh_gatt_cfg_cli_conn_reset(struct bt_mesh_gatt_cfg_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx)
 {
-	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_ECHO,
-				 BT_MESH_GATT_CFG_MSG_LEN_ECHO);
-	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_ECHO);
+	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_CONN_LIST_RESET,
+				 BT_MESH_GATT_CFG_MSG_LEN_CONN_LIST_RESET);
+	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_CONN_LIST_RESET);
 
 
 	return model_send(cli->model, ctx, &msg);

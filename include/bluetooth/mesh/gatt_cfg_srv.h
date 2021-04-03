@@ -15,12 +15,11 @@ struct bt_mesh_gatt_cfg_srv;
 	}
 
 #define BT_MESH_MODEL_GATT_CFG_SRV(_srv)                                       \
-	BT_MESH_MODEL_VND_CB(                                                  \
-		BT_MESH_GATT_CFG_VENDOR_COMPANY_ID,                            \
-		BT_MESH_GATT_CFG_SRV_VENDOR_MODEL_ID,                          \
-		_bt_mesh_gatt_cfg_srv_op, &(_srv)->pub,                        \
-		BT_MESH_MODEL_USER_DATA(struct bt_mesh_gatt_cfg_srv, _srv),    \
-		&_bt_mesh_gatt_cfg_srv_cb)
+	BT_MESH_MODEL_CB(BT_MESH_GATT_CFG_SRV_VENDOR_MODEL_ID,                 \
+			 _bt_mesh_gatt_cfg_srv_op, &(_srv)->pub,               \
+			 BT_MESH_MODEL_USER_DATA(struct bt_mesh_gatt_cfg_srv,  \
+						 _srv),                        \
+			 &_bt_mesh_gatt_cfg_srv_cb)
 
 struct bt_mesh_gatt_cfg_srv_handlers {
 	void (*const set)(struct bt_mesh_gatt_cfg_srv *srv,
@@ -31,6 +30,11 @@ struct bt_mesh_gatt_cfg_srv_handlers {
 	void (*const get)(struct bt_mesh_gatt_cfg_srv *srv,
 			  struct bt_mesh_msg_ctx *ctx,
 			  struct bt_mesh_gatt_cfg_status *rsp);
+};
+
+struct bt_mesh_gatt_cfg_conn_entry {
+	struct bt_mesh_gatt_cfg_conn_set ctx;
+	bool is_active;
 };
 
 struct bt_mesh_gatt_cfg_srv {
@@ -46,7 +50,7 @@ struct bt_mesh_gatt_cfg_srv {
 	struct net_buf_simple pub_buf;
 	/* Publication data */
 	uint8_t pub_data[BT_MESH_MODEL_BUF_LEN(
-		BT_MESH_GATT_CFG_OP_STATUS, BT_MESH_GATT_CFG_MSG_MAXLEN_STATUS)];
+		BT_MESH_GATT_CFG_OP_STATUS, BT_MESH_GATT_CFG_MSG_LEN_STATUS)];
 
 	struct k_delayed_work l_data_work;
 	uint8_t l_data_msg_cnt;
@@ -54,6 +58,8 @@ struct bt_mesh_gatt_cfg_srv {
 	uint8_t l_data_idx;
 	struct link_data l_data[32];
 
+	struct bt_mesh_gatt_cfg_conn_entry conn_list[8];
+	uint8_t conn_list_idx;
 };
 
 int32_t bt_mesh_gatt_cfg_srv_pub(struct bt_mesh_gatt_cfg_srv *srv,

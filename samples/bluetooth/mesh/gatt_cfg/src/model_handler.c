@@ -105,11 +105,9 @@ static struct bt_mesh_elem elements[] = {
 	BT_MESH_ELEM(1,
 		     BT_MESH_MODEL_LIST(
 			     BT_MESH_MODEL_CFG_SRV,
-			     BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub)),
+			     BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
+			     BT_MESH_MODEL_GATT_CFG_CLI(&gatt_cfg_cli)),
 		     BT_MESH_MODEL_NONE),
-	BT_MESH_ELEM(
-		2, BT_MESH_MODEL_NONE,
-		BT_MESH_MODEL_LIST(BT_MESH_MODEL_GATT_CFG_CLI(&gatt_cfg_cli))),
 };
 
 static const struct bt_mesh_comp comp = {
@@ -260,25 +258,6 @@ static int cmd_gatt_link_init(const struct shell *shell, size_t argc,
 	return 0;
 }
 
-static const char *hex_real(const void *buf, size_t len)
-{
-	static const char hex[] = "0123456789abcdef";
-	static char str[129];
-	const uint8_t *b = buf;
-	size_t i;
-
-	len = MIN(len, (sizeof(str) - 1) / 2);
-
-	for (i = 0; i < len; i++) {
-		str[i * 2]     = hex[b[i] >> 4];
-		str[i * 2 + 1] = hex[b[i] & 0xf];
-	}
-
-	str[i * 2] = '\0';
-
-	return str;
-}
-
 static int cmd_gatt_link_fetch(const struct shell *shell, size_t argc,
 			       char *argv[])
 {
@@ -318,6 +297,74 @@ static int cmd_gatt_link_fetch(const struct shell *shell, size_t argc,
 	return 0;
 }
 
+static int cmd_gatt_connect(const struct shell *shell, size_t argc,
+			       char *argv[])
+{
+	uint16_t cli_addr;
+	uint16_t srv_addr;
+
+	int err;
+
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
+	cli_addr = strtol(argv[1], NULL, 0);
+	srv_addr = strtol(argv[2], NULL, 0);
+
+	/* Print own message to the chat. */
+	// shell_print(shell, "<you>: *0x%04X*", dst_addr);
+
+
+	struct bt_mesh_msg_ctx ctx = {
+		.addr = cli_addr,
+		.send_ttl = BT_MESH_TTL_DEFAULT,
+		.app_idx = 0,
+	};
+
+	struct bt_mesh_gatt_cfg_conn_set set_conn = {
+		.addr = srv_addr,
+		.net_id = 0,
+	};
+	err = bt_mesh_gatt_cfg_cli_conn_set(&gatt_cfg_cli, &ctx, &set_conn, NULL);
+
+	struct bt_mesh_gatt_cfg_adv_set set = {
+		.on_off = true,
+		.net_id = 0,
+	};
+	ctx.addr = srv_addr;
+	err = bt_mesh_gatt_cfg_cli_adv_set(&gatt_cfg_cli, &ctx, &set, NULL);
+
+	if (err) {
+		LOG_WRN("Failed to publish message: %d", err);
+	}
+
+	return 0;
+}
+
+static int cmd_gatt_conn_reset(const struct shell *shell, size_t argc,
+			       char *argv[])
+{
+	if (argc < 1) {
+		return -EINVAL;
+	}
+
+	uint16_t dst_addr = strtol(argv[1], NULL, 0);
+
+	struct bt_mesh_msg_ctx ctx = {
+		.addr = dst_addr,
+		.send_ttl = BT_MESH_TTL_DEFAULT,
+		.app_idx = 0,
+	};
+
+	int err = bt_mesh_gatt_cfg_cli_conn_reset(&gatt_cfg_cli, &ctx);
+	if (err) {
+		LOG_WRN("Failed to publish message: %d", err);
+	}
+
+	return 0;
+}
+
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	chat_cmds,
 	SHELL_CMD_ARG(adv_set, NULL, "Set the GATT config adv <addr> <onoff> <net_idx>",
@@ -330,6 +377,10 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      cmd_gatt_link_init, 3, 0),
 	SHELL_CMD_ARG(link_fetch, NULL, "Fetch link mapping",
 		      cmd_gatt_link_fetch, 2, 0),
+	SHELL_CMD_ARG(connect, NULL, "Connect two devices <cli_addr> <srv_addr>",
+		      cmd_gatt_connect, 3, 0),
+	SHELL_CMD_ARG(conn_reset, NULL, "Reset connection list",
+		      cmd_gatt_conn_reset, 2, 0),
 	SHELL_SUBCMD_SET_END);
 
 static int cmd_chat(const struct shell *shell, size_t argc, char **argv)

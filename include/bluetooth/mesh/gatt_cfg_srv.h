@@ -2,6 +2,8 @@
 #define BT_MESH_GATT_CFG_SRV_H__
 
 #include <bluetooth/mesh/gatt_cfg.h>
+#include <bluetooth/conn.h>
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,6 +37,7 @@ struct bt_mesh_gatt_cfg_srv_handlers {
 struct bt_mesh_gatt_cfg_conn_entry {
 	struct bt_mesh_gatt_cfg_conn_set ctx;
 	bool is_active;
+	struct bt_conn *conn;
 };
 
 struct bt_mesh_gatt_cfg_srv {

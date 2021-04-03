@@ -299,6 +299,12 @@ static void handle_conn_list_reset(struct bt_mesh_model *model,
 
 	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
 
+	for (size_t i = 0; i < ARRAY_SIZE(srv->conn_list); i++) {
+		if (srv->conn_list[i].is_active) {
+			bt_conn_disconnect(srv->conn_list[i].conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+		}
+	}
+
 	memset(srv->conn_list, 0, sizeof(srv->conn_list));
 	srv->conn_list_idx = 0;
 	int err = store_state(srv);
@@ -337,6 +343,7 @@ void gatt_connected_cb(struct bt_conn *conn,
 
 	if (entry) {
 		entry->is_active = true;
+		entry->conn = conn;
 	}
 
 	printk("NODE: %d CONNECTED\n", addr_ctx->addr);
@@ -352,6 +359,7 @@ void gatt_disconnected_cb(struct bt_conn *conn,
 
 	if (entry) {
 		entry->is_active = false;
+		entry->conn = NULL;
 	}
 
 	printk("NODE: %d DISCONNECTED\n", addr_ctx->addr);

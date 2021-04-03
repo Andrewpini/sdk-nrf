@@ -6,6 +6,7 @@
 #include "mesh/access.h"
 #include "mesh/proxy.h"
 #include "mesh/proxy_client.h"
+#include "mesh/adv.h"
 
 static int32_t link_update_send(struct bt_mesh_gatt_cfg_srv *srv);
 static int net_id_adv_set(struct bt_mesh_gatt_cfg_srv *srv,
@@ -124,7 +125,7 @@ static void handle_node_id_adv_set(struct bt_mesh_model *model,
 	} else {
 		bt_mesh_proxy_identity_stop(sub);
 	}
-
+	bt_mesh_adv_update();
 	printk("Turning node ID advertising %s for net_id %d\n",
 	       (set.on_off ? "On" : "OFF"), set.net_id);
 }

@@ -76,7 +76,8 @@ BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 
 static void status_handler(struct bt_mesh_gatt_cfg_cli *cli,
 			   struct bt_mesh_msg_ctx *ctx,
-			   enum bt_mesh_gatt_cfg_status_type status)
+			   enum bt_mesh_gatt_cfg_status_type status,
+			   uint8_t err_code)
 {
 	char lladdr[124] = {0};
 	switch (status)
@@ -93,6 +94,13 @@ static void status_handler(struct bt_mesh_gatt_cfg_cli *cli,
 		printk("%s\n", lladdr);
 		break;
 
+	case BT_MESH_GATT_CFG_CONN_ADD:
+		printk("BT_MESH_GATT_CFG_CONN_ADD addr:%d, err_code:%d\n", ctx->addr, err_code);
+		break;
+
+	case BT_MESH_GATT_CFG_CONN_RESET:
+		printk("BT_MESH_GATT_CFG_CONN_RESET addr:%d, err_code:%d\n", ctx->addr, err_code);
+		break;
 	default:
 		break;
 	}

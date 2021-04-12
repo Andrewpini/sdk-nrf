@@ -24,7 +24,8 @@ struct bt_mesh_gatt_cfg_cli;
 struct bt_mesh_gatt_cfg_cli {
 	void (*const status_handler)(struct bt_mesh_gatt_cfg_cli *cli,
 				     struct bt_mesh_msg_ctx *ctx,
-				     enum bt_mesh_gatt_cfg_status_type status);
+				     enum bt_mesh_gatt_cfg_status_type status,
+				     uint8_t err_code);
 	/** Current Transaction ID. */
 	uint8_t tid;
 	/** Response context for tracking acknowledged messages. */

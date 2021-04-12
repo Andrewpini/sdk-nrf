@@ -41,17 +41,10 @@ static void handle_status(struct bt_mesh_model *model,
 	struct bt_mesh_gatt_cfg_cli *cli = model->user_data;
 
 	enum bt_mesh_gatt_cfg_status_type status = net_buf_simple_pull_u8(buf);
-
-	// if (model_ack_match(&cli->ack_ctx, BT_MESH_GATT_CFG_OP_STATUS, ctx)) {
-	// 	struct bt_mesh_gatt_cfg_status *rsp =
-	// 		(struct bt_mesh_gatt_cfg_status *)cli->ack_ctx.user_data;
-
-	// 	*rsp = status;
-	// 	model_ack_rx(&cli->ack_ctx);
-	// }
+	uint8_t err_code = net_buf_simple_pull_u8(buf);
 
 	if (cli->status_handler) {
-		cli->status_handler(cli, ctx, status);
+		cli->status_handler(cli, ctx, status, err_code);
 	}
 }
 

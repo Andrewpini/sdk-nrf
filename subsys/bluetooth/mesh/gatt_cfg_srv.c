@@ -60,10 +60,11 @@ static void l_data_cb(struct k_work *work)
 		k_delayed_work_submit(&srv->l_data_work, K_MSEC(200));
 	} else {
 		l_data_print(srv);
-		bt_mesh_gatt_cfg_srv_pub(srv, NULL, BT_MESH_GATT_CFG_LINK_UPDATE_ENDED);
+		bt_mesh_gatt_cfg_srv_pub(srv, NULL,
+					 BT_MESH_GATT_CFG_LINK_UPDATE_ENDED,
+					 BT_MESH_GATT_CFG_ERR_SUCCESS);
 	}
 }
-
 
 static void l_data_put(struct bt_mesh_gatt_cfg_srv *srv, uint16_t addr)
 {
@@ -82,19 +83,22 @@ static void l_data_put(struct bt_mesh_gatt_cfg_srv *srv, uint16_t addr)
 }
 
 static void encode_status(struct net_buf_simple *buf,
-			  enum bt_mesh_gatt_cfg_status_type status)
+			  enum bt_mesh_gatt_cfg_status_type status,
+			  uint8_t err_code)
 {
 	bt_mesh_model_msg_init(buf, BT_MESH_GATT_CFG_OP_STATUS);
 	net_buf_simple_add_u8(buf, status);
+	net_buf_simple_add_u8(buf, err_code);
 }
 
 static void rsp_status(struct bt_mesh_model *model,
 		       struct bt_mesh_msg_ctx *rx_ctx,
-		       enum bt_mesh_gatt_cfg_status_type status)
+		       enum bt_mesh_gatt_cfg_status_type status,
+		       uint8_t err_code)
 {
 	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_STATUS,
 				 BT_MESH_GATT_CFG_MSG_LEN_STATUS);
-	encode_status(&msg, status);
+	encode_status(&msg, status, err_code);
 
 	(void)bt_mesh_model_send(model, rx_ctx, &msg, NULL, NULL);
 }
@@ -130,21 +134,23 @@ static void handle_node_id_adv_set(struct bt_mesh_model *model,
 	       (set.on_off ? "On" : "OFF"), set.net_id);
 }
 
-static void conn_put(struct bt_mesh_gatt_cfg_srv *srv,
+static uint8_t conn_put(struct bt_mesh_gatt_cfg_srv *srv,
 		     struct bt_mesh_gatt_cfg_conn_set set)
 {
 	for (size_t i = 0; i < ARRAY_SIZE(srv->conn_list); i++) {
 		if ((set.addr == srv->conn_list[i].ctx.addr) &&
 		    (set.net_id == srv->conn_list[i].ctx.net_id)) {
 			printk("Already present in connection entries\n");
-			return;
+			return EADDRINUSE;
 		}
 	}
 	if (srv->conn_list_idx <= (ARRAY_SIZE(srv->conn_list) - 1)) {
 		srv->conn_list[srv->conn_list_idx].ctx = set;
 		srv->conn_list_idx++;
+		return 0;
 	} else {
 		printk("Connection entry buffer is full\n");
+		return EAGAIN;
 	}
 }
 
@@ -199,11 +205,10 @@ static void handle_conn_set(struct bt_mesh_model *model,
 
 	set.addr = net_buf_simple_pull_le16(buf);
 	set.net_id = net_buf_simple_pull_u8(buf);
-	conn_put(srv, set);
-	store_state(srv);
+	uint8_t err = conn_put(srv, set);
 	conn_link_handle();
 
-	printk("Received a new connection request to node %d on net_id %d\n", set.addr, set.net_id);
+	rsp_status(model, ctx, BT_MESH_GATT_CFG_CONN_ADD, err);
 }
 
 static void handle_adv_enable(struct bt_mesh_model *model,
@@ -260,12 +265,13 @@ static void handle_link_init(struct bt_mesh_model *model,
 
 	k_delayed_work_submit(&srv->l_data_work, K_MSEC(1000));
 
-	rsp_status(model, ctx, BT_MESH_GATT_CFG_LINK_UPDATE_STARTED);
+	rsp_status(model, ctx, BT_MESH_GATT_CFG_LINK_UPDATE_STARTED,
+		   BT_MESH_GATT_CFG_ERR_SUCCESS);
 }
 
 static void handle_link_fetch(struct bt_mesh_model *model,
-			     struct bt_mesh_msg_ctx *ctx,
-			     struct net_buf_simple *buf)
+			      struct bt_mesh_msg_ctx *ctx,
+			      struct net_buf_simple *buf)
 {
 	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_LINK_FETCH) {
 		return;
@@ -309,6 +315,7 @@ static void handle_conn_list_reset(struct bt_mesh_model *model,
 	srv->conn_list_idx = 0;
 	int err = store_state(srv);
 	printk("Storing status: %d\n", err);
+	rsp_status(model, ctx, BT_MESH_GATT_CFG_CONN_RESET, err);
 }
 
 const struct bt_mesh_model_op _bt_mesh_gatt_cfg_srv_op[] = {
@@ -438,11 +445,12 @@ const struct bt_mesh_model_cb _bt_mesh_gatt_cfg_srv_cb = {
 
 int32_t bt_mesh_gatt_cfg_srv_pub(struct bt_mesh_gatt_cfg_srv *srv,
 			    struct bt_mesh_msg_ctx *ctx,
-			    enum bt_mesh_gatt_cfg_status_type status)
+			    enum bt_mesh_gatt_cfg_status_type status,
+			    uint8_t err_code)
 {
 	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_STATUS,
 				 BT_MESH_GATT_CFG_MSG_LEN_STATUS);
-	encode_status(&msg, status);
+	encode_status(&msg, status, err_code);
 	return model_send(srv->model, ctx, &msg);
 }
 

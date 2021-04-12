@@ -61,6 +61,7 @@ struct bt_mesh_gatt_cfg_srv {
 	uint8_t l_data_idx;
 	struct link_data l_data[32];
 
+	struct k_delayed_work conn_entry_work;
 	struct bt_mesh_gatt_cfg_conn_entry conn_list[8];
 	uint8_t conn_list_idx;
 };

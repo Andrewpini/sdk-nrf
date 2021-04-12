@@ -167,28 +167,49 @@ static struct bt_mesh_gatt_cfg_conn_entry *conn_get(
 	return NULL;
 }
 
-static void conn_link_handle(void)
+static bool conn_link_handle(void)
 {
+	static uint8_t idx = 0;
+	bool finished = true;
+
 	for (size_t i = 0; i < ARRAY_SIZE(p_srv->conn_list); i++) {
-		if (p_srv->conn_list[i].ctx.addr)
+		if (p_srv->conn_list[idx].ctx.addr)
 		{
-			if (!p_srv->conn_list[i].is_active)
+			if (!p_srv->conn_list[idx].is_active)
 			{
 				struct bt_mesh_gatt_cfg_conn_set conn_set = {
-					.addr = p_srv->conn_list[i].ctx.addr,
-					.net_id = p_srv->conn_list[i].ctx.net_id,
+					.addr = p_srv->conn_list[idx].ctx.addr,
+					.net_id = p_srv->conn_list[idx].ctx.net_id,
 				};
 				struct bt_mesh_gatt_cfg_adv_set adv_set = {
 					.on_off = true,
-					.net_id = p_srv->conn_list[i].ctx.net_id,
+					.net_id = p_srv->conn_list[idx].ctx.net_id,
 				};
-
-				bt_mesh_proxy_cli_node_id_ctx_set((struct node_id_lookup *)&conn_set);
-				net_id_adv_set(p_srv, p_srv->conn_list[i].ctx.addr, &adv_set, NULL);
+				bt_mesh_proxy_cli_adv_relay_set(true);
+				bt_mesh_proxy_cli_node_id_connect((struct node_id_lookup *)&conn_set);
+				net_id_adv_set(p_srv, p_srv->conn_list[idx].ctx.addr, &adv_set, NULL);
+				finished = false;
+				printk("Current idx: %d\n", idx);
+				idx = (idx + 1) % ARRAY_SIZE(p_srv->conn_list);
+				return true;
 			}
-
 		}
+		idx = (idx + 1) % ARRAY_SIZE(p_srv->conn_list);
+	}
 
+	bt_mesh_proxy_cli_adv_relay_set(finished ? false : true);
+	return false;
+}
+
+static void conn_entry_work_cb(struct k_work *work)
+{
+	struct bt_mesh_gatt_cfg_srv *srv =
+		CONTAINER_OF(work, struct bt_mesh_gatt_cfg_srv, conn_entry_work);
+
+	bool res = conn_link_handle();
+	printk("Working: %d\n", res);
+	if (res) {
+		k_delayed_work_submit(&srv->conn_entry_work, K_SECONDS(5));
 	}
 }
 
@@ -206,14 +227,20 @@ static void handle_conn_set(struct bt_mesh_model *model,
 	set.addr = net_buf_simple_pull_le16(buf);
 	set.net_id = net_buf_simple_pull_u8(buf);
 	uint8_t err = conn_put(srv, set);
-	conn_link_handle();
 
+	if (!err) {
+		store_state(srv);
+		k_delayed_work_submit(&srv->conn_entry_work, K_NO_WAIT);
+	}
+
+	printk("Received a new connection request to node %d on net_id %d\n",
+	       set.addr, set.net_id);
 	rsp_status(model, ctx, BT_MESH_GATT_CFG_CONN_ADD, err);
 }
 
 static void handle_adv_enable(struct bt_mesh_model *model,
-			     struct bt_mesh_msg_ctx *ctx,
-			     struct net_buf_simple *buf)
+			      struct bt_mesh_msg_ctx *ctx,
+			      struct net_buf_simple *buf)
 {
 	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_ADV_ENABLE) {
 		return;
@@ -224,7 +251,7 @@ static void handle_adv_enable(struct bt_mesh_model *model,
 		return;
 	}
 
-	// TODO: Handle turning the advertising on and off.
+	bt_mesh_proxy_cli_adv_relay_set(on_off);
 
 	printk("Turning the advertiser %s\n", (on_off ? "On" : "OFF"));
 }
@@ -243,6 +270,7 @@ static void handle_link_update(struct bt_mesh_model *model,
 
 	if (srv->link_update_active && (addr != bt_mesh_primary_addr()))
 	{
+		printk("Incoming Link Update\n");
 		l_data_put(srv, addr);
 	}
 
@@ -353,8 +381,15 @@ void gatt_connected_cb(struct bt_conn *conn,
 		entry->conn = conn;
 	}
 
+	k_delayed_work_cancel(&p_srv->conn_entry_work);
 	printk("NODE: %d CONNECTED\n", addr_ctx->addr);
-	conn_link_handle();
+}
+
+void gatt_configured_cb(struct bt_conn *conn,
+		       struct node_id_lookup *addr_ctx)
+{
+	printk("NODE: %d CONFIGURED\n", addr_ctx->addr);
+	k_delayed_work_submit(&p_srv->conn_entry_work, K_NO_WAIT);
 }
 
 void gatt_disconnected_cb(struct bt_conn *conn,
@@ -370,7 +405,7 @@ void gatt_disconnected_cb(struct bt_conn *conn,
 	}
 
 	printk("NODE: %d DISCONNECTED\n", addr_ctx->addr);
-	conn_link_handle();
+	k_delayed_work_submit(&p_srv->conn_entry_work, K_NO_WAIT);
 }
 
 static int bt_mesh_gatt_cfg_srv_init(struct bt_mesh_model *model)
@@ -383,7 +418,8 @@ static int bt_mesh_gatt_cfg_srv_init(struct bt_mesh_model *model)
 	net_buf_simple_init_with_data(&srv->pub_buf, srv->pub_data,
 				      sizeof(srv->pub_data));
 	k_delayed_work_init(&srv->l_data_work, l_data_cb);
-	bt_mesh_proxy_cli_conn_cb_set(gatt_connected_cb, gatt_disconnected_cb);
+	k_delayed_work_init(&srv->conn_entry_work, conn_entry_work_cb);
+	bt_mesh_proxy_cli_conn_cb_set(gatt_connected_cb, gatt_configured_cb, gatt_disconnected_cb);
 	p_srv = srv;
 	return 0;
 }
@@ -429,8 +465,8 @@ static int bt_mesh_gatt_cfg_srv_settings_set(struct bt_mesh_model *model,
 static int bt_mesh_gatt_cfg_srv_start(struct bt_mesh_model *model)
 {
 
-	bt_mesh_subnet_foreach(bt_mesh_proxy_identity_start);
-	conn_link_handle();
+	// bt_mesh_subnet_foreach(bt_mesh_proxy_identity_start);
+	k_delayed_work_submit(&p_srv->conn_entry_work, K_NO_WAIT);
 	return 0;
 }
 
@@ -485,7 +521,7 @@ static int net_id_adv_set(struct bt_mesh_gatt_cfg_srv *srv,
 
 	struct bt_mesh_msg_ctx ctx = {
 		.addr = dst_addr,
-		.send_ttl = 0,
+		.send_ttl = BT_MESH_TTL_DEFAULT,
 		.send_rel = srv->pub.send_rel,
 		.app_idx = srv->pub.key,
 	};

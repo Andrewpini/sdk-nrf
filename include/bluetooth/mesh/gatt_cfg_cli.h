@@ -69,7 +69,7 @@ int bt_mesh_gatt_cfg_cli_conn_set(struct bt_mesh_gatt_cfg_cli *cli,
 
 int bt_mesh_gatt_cfg_cli_adv_enable(struct bt_mesh_gatt_cfg_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx,
-			  bool onoff,
+			  enum bt_mesh_proxy_cli_adv_state state,
 			  struct bt_mesh_gatt_cfg_status *rsp);
 
 int bt_mesh_gatt_cfg_cli_link_init(struct bt_mesh_gatt_cfg_cli *cli,

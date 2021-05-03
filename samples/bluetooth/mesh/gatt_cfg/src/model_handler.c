@@ -217,7 +217,7 @@ static int cmd_gatt_adv_enable(const struct shell *shell, size_t argc,
 	}
 
 	dst_addr = strtol(argv[1], NULL, 0);
-	onoff = (bool)strtol(argv[2], NULL, 0);
+	enum bt_mesh_proxy_cli_adv_state state = strtol(argv[2], NULL, 0);
 
 	/* Print own message to the chat. */
 	shell_print(shell, "<you>: *0x%04X*", dst_addr);
@@ -229,7 +229,7 @@ static int cmd_gatt_adv_enable(const struct shell *shell, size_t argc,
 		.app_idx = 0,
 	};
 
-	err = bt_mesh_gatt_cfg_cli_adv_enable(&gatt_cfg_cli, &ctx, onoff, NULL);
+	err = bt_mesh_gatt_cfg_cli_adv_enable(&gatt_cfg_cli, &ctx, (enum bt_mesh_proxy_cli_adv_state)state, NULL);
 	if (err) {
 		LOG_WRN("Failed to publish message: %d", err);
 	}

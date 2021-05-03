@@ -21,6 +21,7 @@ struct bt_mesh_gatt_cfg_srv *p_srv;
 struct bt_mesh_gatt_cfg_srv_settings_data {
 	uint8_t conn_list_idx;
 	struct bt_mesh_gatt_cfg_conn_set conns[8];
+	enum bt_mesh_proxy_cli_adv_state adv_state;
 } __packed;
 
 
@@ -32,6 +33,7 @@ static int store_state(struct bt_mesh_gatt_cfg_srv *srv)
 
 	struct bt_mesh_gatt_cfg_srv_settings_data data = {
 		.conn_list_idx = srv->conn_list_idx,
+		.adv_state = srv->adv_state,
 	};
 
 	for (size_t i = 0; i < ARRAY_SIZE(srv->conn_list); i++) {
@@ -185,9 +187,9 @@ static bool conn_link_handle(void)
 					.on_off = true,
 					.net_id = p_srv->conn_list[idx].ctx.net_id,
 				};
-				bt_mesh_proxy_cli_adv_relay_set(true);
+				bt_mesh_proxy_cli_adv_state_set(BT_MESH_PROXY_CLI_ADV_ENABLED);
 				bt_mesh_proxy_cli_node_id_connect((struct node_id_lookup *)&conn_set);
-				net_id_adv_set(p_srv, p_srv->conn_list[idx].ctx.addr, &adv_set, NULL);
+				int error = net_id_adv_set(p_srv, p_srv->conn_list[idx].ctx.addr, &adv_set, NULL);
 				finished = false;
 				printk("Current idx: %d\n", idx);
 				idx = (idx + 1) % ARRAY_SIZE(p_srv->conn_list);
@@ -197,7 +199,9 @@ static bool conn_link_handle(void)
 		idx = (idx + 1) % ARRAY_SIZE(p_srv->conn_list);
 	}
 
-	bt_mesh_proxy_cli_adv_relay_set(finished ? false : true);
+	if (finished) {
+		bt_mesh_proxy_cli_adv_state_set(p_srv->adv_state);
+	}
 	return false;
 }
 
@@ -246,14 +250,14 @@ static void handle_adv_enable(struct bt_mesh_model *model,
 		return;
 	}
 
-	uint8_t on_off = net_buf_simple_pull_u8(buf);
-	if (on_off > 1) {
-		return;
-	}
+	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
+	srv->adv_state = net_buf_simple_pull_u8(buf);
 
-	bt_mesh_proxy_cli_adv_relay_set(on_off);
 
-	printk("Turning the advertiser %s\n", (on_off ? "On" : "OFF"));
+	bt_mesh_proxy_cli_adv_state_set(srv->adv_state);
+	store_state(srv);
+
+	printk("Turning the advertiser %s\n", (srv->adv_state ? "OFF" : "ON"));
 }
 
 static void handle_link_update(struct bt_mesh_model *model,
@@ -381,7 +385,7 @@ void gatt_connected_cb(struct bt_conn *conn,
 		entry->conn = conn;
 	}
 
-	k_delayed_work_cancel(&p_srv->conn_entry_work);
+	// k_delayed_work_cancel(&p_srv->conn_entry_work);
 	printk("NODE: %d CONNECTED\n", addr_ctx->addr);
 }
 
@@ -452,6 +456,7 @@ static int bt_mesh_gatt_cfg_srv_settings_set(struct bt_mesh_model *model,
 	}
 
 	srv->conn_list_idx = data.conn_list_idx;
+	srv->adv_state = data.adv_state;
 
 	for (size_t i = 0; i < ARRAY_SIZE(srv->conn_list); i++) {
 		srv->conn_list[i].ctx = data.conns[i];

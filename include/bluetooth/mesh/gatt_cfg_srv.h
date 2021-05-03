@@ -64,6 +64,8 @@ struct bt_mesh_gatt_cfg_srv {
 	struct k_delayed_work conn_entry_work;
 	struct bt_mesh_gatt_cfg_conn_entry conn_list[8];
 	uint8_t conn_list_idx;
+
+	enum bt_mesh_proxy_cli_adv_state adv_state;
 };
 
 int32_t bt_mesh_gatt_cfg_srv_pub(struct bt_mesh_gatt_cfg_srv *srv,

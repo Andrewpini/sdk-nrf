@@ -147,14 +147,14 @@ int bt_mesh_gatt_cfg_cli_conn_set(struct bt_mesh_gatt_cfg_cli *cli,
 
 int bt_mesh_gatt_cfg_cli_adv_enable(struct bt_mesh_gatt_cfg_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx,
-			  bool onoff,
+			  enum bt_mesh_proxy_cli_adv_state state,
 			  struct bt_mesh_gatt_cfg_status *rsp)
 {
 	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_ADV_ENABLE,
 				 BT_MESH_GATT_CFG_MSG_LEN_ADV_ENABLE);
 	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_ADV_ENABLE);
 
-	net_buf_simple_add_u8(&msg, onoff);
+	net_buf_simple_add_u8(&msg, state);
 
 	return model_ackd_send(cli->model, ctx, &msg,
 			       rsp ? &cli->ack_ctx : NULL,

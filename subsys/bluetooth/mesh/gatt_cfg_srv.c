@@ -7,12 +7,15 @@
 #include "mesh/proxy.h"
 #include "mesh/proxy_client.h"
 #include "mesh/adv.h"
+#include <dk_buttons_and_leds.h>
+
 
 static int32_t link_update_send(struct bt_mesh_gatt_cfg_srv *srv);
 static int net_id_adv_set(struct bt_mesh_gatt_cfg_srv *srv,
 			  uint16_t dst_addr,
 			  struct bt_mesh_gatt_cfg_adv_set *set,
 			  struct bt_mesh_gatt_cfg_status *rsp);
+static int32_t test_msg_send(struct bt_mesh_gatt_cfg_srv *srv, bool onoff);
 
 
 struct bt_mesh_gatt_cfg_srv *p_srv;
@@ -350,6 +353,32 @@ static void handle_conn_list_reset(struct bt_mesh_model *model,
 	rsp_status(model, ctx, BT_MESH_GATT_CFG_CONN_RESET, err);
 }
 
+static void handle_test_msg_init(struct bt_mesh_model *model,
+			     struct bt_mesh_msg_ctx *ctx,
+			     struct net_buf_simple *buf)
+{
+	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_TEST_MSG_INIT) {
+		return;
+	}
+
+	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
+	bool onoff = net_buf_simple_pull_u8(buf);
+	test_msg_send(srv, onoff);
+}
+
+static void handle_test_msg(struct bt_mesh_model *model,
+			     struct bt_mesh_msg_ctx *ctx,
+			     struct net_buf_simple *buf)
+{
+	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_TEST_MSG) {
+		return;
+	}
+
+	bool onoff = net_buf_simple_pull_u8(buf);
+	printk("LED\n");
+	dk_set_led(1, onoff);
+}
+
 const struct bt_mesh_model_op _bt_mesh_gatt_cfg_srv_op[] = {
 	{ BT_MESH_GATT_CFG_OP_ADV_SET, BT_MESH_GATT_CFG_MSG_LEN_ADV_SET,
 	  handle_node_id_adv_set },
@@ -365,6 +394,10 @@ const struct bt_mesh_model_op _bt_mesh_gatt_cfg_srv_op[] = {
 	  handle_link_fetch },
 	{ BT_MESH_GATT_CFG_OP_CONN_LIST_RESET, BT_MESH_GATT_CFG_MSG_LEN_CONN_LIST_RESET,
 	  handle_conn_list_reset },
+	{ BT_MESH_GATT_CFG_OP_TEST_MSG_INIT, BT_MESH_GATT_CFG_MSG_LEN_TEST_MSG_INIT,
+	  handle_test_msg_init },
+	{ BT_MESH_GATT_CFG_OP_TEST_MSG, BT_MESH_GATT_CFG_MSG_LEN_TEST_MSG,
+	  handle_test_msg },
 	BT_MESH_MODEL_OP_END,
 };
 
@@ -510,6 +543,16 @@ static int32_t link_update_send(struct bt_mesh_gatt_cfg_srv *srv)
 	};
 
 	return model_send(srv->model, &ctx, &msg);
+}
+
+static int32_t test_msg_send(struct bt_mesh_gatt_cfg_srv *srv, bool onoff)
+{
+	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_TEST_MSG,
+				 BT_MESH_GATT_CFG_MSG_LEN_TEST_MSG);
+	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_TEST_MSG);
+	net_buf_simple_add_u8(&msg, onoff);
+
+	return model_send(srv->model, NULL, &msg);
 }
 
 static int net_id_adv_set(struct bt_mesh_gatt_cfg_srv *srv,

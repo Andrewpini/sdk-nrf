@@ -2,6 +2,7 @@
 #define BT_MESH_GATT_CFG_H__
 
 #include <bluetooth/mesh/model_types.h>
+#include "mesh/proxy_client.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,6 +25,8 @@ extern "C" {
 #define BT_MESH_GATT_CFG_OP_LINK_FETCH BT_MESH_MODEL_OP_2(0x82, 0x13)
 #define BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP BT_MESH_MODEL_OP_2(0x82, 0x14)
 #define BT_MESH_GATT_CFG_OP_CONN_LIST_RESET BT_MESH_MODEL_OP_2(0x82, 0x15)
+#define BT_MESH_GATT_CFG_OP_TEST_MSG_INIT BT_MESH_MODEL_OP_2(0x82, 0x16)
+#define BT_MESH_GATT_CFG_OP_TEST_MSG BT_MESH_MODEL_OP_2(0x82, 0x17)
 
 #define BT_MESH_GATT_CFG_MSG_LEN_ADV_SET 2
 #define BT_MESH_GATT_CFG_MSG_LEN_CONN_SET 3
@@ -35,8 +38,8 @@ extern "C" {
 #define BT_MESH_GATT_CFG_MSG_MAXLEN_FETCH_RSP 98
 #define BT_MESH_GATT_CFG_MSG_LEN_CONN_LIST_RESET 0
 #define BT_MESH_GATT_CFG_MSG_LEN_STATUS 2
-
-
+#define BT_MESH_GATT_CFG_MSG_LEN_TEST_MSG_INIT 1
+#define BT_MESH_GATT_CFG_MSG_LEN_TEST_MSG 1
 
 /** @endcond */
 

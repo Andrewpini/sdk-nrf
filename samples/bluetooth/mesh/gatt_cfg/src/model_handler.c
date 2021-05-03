@@ -373,6 +373,30 @@ static int cmd_gatt_conn_reset(const struct shell *shell, size_t argc,
 	return 0;
 }
 
+static int cmd_test_msg(const struct shell *shell, size_t argc,
+			       char *argv[])
+{
+	if (argc < 1) {
+		return -EINVAL;
+	}
+
+	uint16_t dst_addr = strtol(argv[1], NULL, 0);
+	bool onoff = (bool)strtol(argv[2], NULL, 0);
+
+	struct bt_mesh_msg_ctx ctx = {
+		.addr = dst_addr,
+		.send_ttl = BT_MESH_TTL_DEFAULT,
+		.app_idx = 0,
+	};
+
+	int err = bt_mesh_gatt_cfg_cli_test_msg_init(&gatt_cfg_cli, &ctx, onoff);
+	if (err) {
+		LOG_WRN("Failed to publish message: %d", err);
+	}
+
+	return 0;
+}
+
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	chat_cmds,
 	SHELL_CMD_ARG(adv_set, NULL, "Set the GATT config adv <addr> <onoff> <net_idx>",
@@ -389,6 +413,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      cmd_gatt_connect, 3, 0),
 	SHELL_CMD_ARG(conn_reset, NULL, "Reset connection list",
 		      cmd_gatt_conn_reset, 2, 0),
+	SHELL_CMD_ARG(test_msg, NULL, "Initiate sending of test message from a node <addr> <onoff>",
+		      cmd_test_msg, 3, 0),
 	SHELL_SUBCMD_SET_END);
 
 static int cmd_chat(const struct shell *shell, size_t argc, char **argv)

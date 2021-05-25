@@ -11,28 +11,12 @@ extern "C" {
 
 struct bt_mesh_gpc_srv;
 
-#define BT_MESH_GPC_SRV_INIT(_handlers)                                   \
-	{                                                                      \
-		.handlers = _handlers,                                         \
-	}
-
 #define BT_MESH_MODEL_GPC_SRV(_srv)                                       \
 	BT_MESH_MODEL_CB(BT_MESH_GPC_SRV_VENDOR_MODEL_ID,                 \
 			 _bt_mesh_gpc_srv_op, &(_srv)->pub,               \
 			 BT_MESH_MODEL_USER_DATA(struct bt_mesh_gpc_srv,  \
 						 _srv),                        \
 			 &_bt_mesh_gpc_srv_cb)
-
-struct bt_mesh_gpc_srv_handlers {
-	void (*const set)(struct bt_mesh_gpc_srv *srv,
-			  struct bt_mesh_msg_ctx *ctx,
-			  const struct bt_mesh_gpc_set *set,
-			  struct bt_mesh_gpc_status *rsp);
-
-	void (*const get)(struct bt_mesh_gpc_srv *srv,
-			  struct bt_mesh_msg_ctx *ctx,
-			  struct bt_mesh_gpc_status *rsp);
-};
 
 struct bt_mesh_gpc_conn_entry {
 	struct bt_mesh_gpc_conn_set ctx;
@@ -43,8 +27,6 @@ struct bt_mesh_gpc_conn_entry {
 struct bt_mesh_gpc_srv {
 	/** Transaction ID tracker. */
 	struct bt_mesh_tid_ctx prev_transaction;
-	/** Handler function structure. */
-	const struct bt_mesh_gpc_srv_handlers *handlers;
 	/** Access model pointer. */
 	struct bt_mesh_model *model;
 	/** Publish parameters. */

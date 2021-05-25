@@ -3,32 +3,6 @@
 #include <bluetooth/mesh/gpc_cli.h>
 #include "model_utils.h"
 
-static int decode_status(struct net_buf_simple *buf,
-			  struct bt_mesh_gpc_status *status)
-{
-	uint8_t on_off;
-
-	on_off = net_buf_simple_pull_u8(buf);
-	if (on_off > 1) {
-		return -EINVAL;
-	}
-	status->present_on_off = on_off;
-
-	if (buf->len == 2) {
-		on_off = net_buf_simple_pull_u8(buf);
-		if (on_off > 1) {
-			return -EINVAL;
-		}
-		status->target_on_off = on_off;
-		status->remaining_time =
-			model_transition_decode(net_buf_simple_pull_u8(buf));
-	} else {
-		status->target_on_off = status->present_on_off;
-		status->remaining_time = 0;
-	}
-
-	return 0;
-}
 
 static void handle_status(struct bt_mesh_model *model,
 			  struct bt_mesh_msg_ctx *ctx,
@@ -113,8 +87,7 @@ const struct bt_mesh_model_cb _bt_mesh_gpc_cli_cb = {
 
 int bt_mesh_gpc_cli_adv_set(struct bt_mesh_gpc_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx,
-			  struct bt_mesh_gpc_adv_set *set,
-			  struct bt_mesh_gpc_status *rsp)
+			  struct bt_mesh_gpc_adv_set *set)
 {
 	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GPC_OP_ADV_SET,
 				 BT_MESH_GPC_MSG_LEN_ADV_SET);
@@ -123,15 +96,12 @@ int bt_mesh_gpc_cli_adv_set(struct bt_mesh_gpc_cli *cli,
 	net_buf_simple_add_u8(&msg, set->on_off);
 	net_buf_simple_add_u8(&msg, set->net_id);
 
-	return model_ackd_send(cli->model, ctx, &msg,
-			       rsp ? &cli->ack_ctx : NULL,
-			       BT_MESH_GPC_OP_STATUS, rsp);
+	return model_send(cli->model, ctx, &msg);
 }
 
 int bt_mesh_gpc_cli_conn_set(struct bt_mesh_gpc_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx,
-			  struct bt_mesh_gpc_conn_set *set,
-			  struct bt_mesh_gpc_status *rsp)
+			  struct bt_mesh_gpc_conn_set *set)
 {
 	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GPC_OP_CONN_SET,
 				 BT_MESH_GPC_MSG_LEN_CONN_SET);
@@ -140,15 +110,12 @@ int bt_mesh_gpc_cli_conn_set(struct bt_mesh_gpc_cli *cli,
 	net_buf_simple_add_le16(&msg, set->addr);
 	net_buf_simple_add_u8(&msg, set->net_id);
 
-	return model_ackd_send(cli->model, ctx, &msg,
-			       rsp ? &cli->ack_ctx : NULL,
-			       BT_MESH_GPC_OP_STATUS, rsp);
+	return model_send(cli->model, ctx, &msg);
 }
 
 int bt_mesh_gpc_cli_adv_enable(struct bt_mesh_gpc_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx,
-			  enum bt_mesh_proxy_cli_adv_state state,
-			  struct bt_mesh_gpc_status *rsp)
+			  enum bt_mesh_proxy_cli_adv_state state)
 {
 	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GPC_OP_ADV_ENABLE,
 				 BT_MESH_GPC_MSG_LEN_ADV_ENABLE);
@@ -156,9 +123,7 @@ int bt_mesh_gpc_cli_adv_enable(struct bt_mesh_gpc_cli *cli,
 
 	net_buf_simple_add_u8(&msg, state);
 
-	return model_ackd_send(cli->model, ctx, &msg,
-			       rsp ? &cli->ack_ctx : NULL,
-			       BT_MESH_GPC_OP_STATUS, rsp);
+	return model_send(cli->model, ctx, &msg);
 }
 
 int bt_mesh_gpc_cli_link_init(struct bt_mesh_gpc_cli *cli,

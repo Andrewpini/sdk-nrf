@@ -41,36 +41,17 @@ struct bt_mesh_gpc_cli {
 	struct bt_mesh_model *model;
 };
 
-
-int bt_mesh_gpc_cli_get(struct bt_mesh_gpc_cli *cli,
-			  struct bt_mesh_msg_ctx *ctx,
-			  struct bt_mesh_gpc_status *rsp);
-
-
-int bt_mesh_gpc_cli_set(struct bt_mesh_gpc_cli *cli,
-			  struct bt_mesh_msg_ctx *ctx,
-			  const struct bt_mesh_gpc_set *set,
-			  struct bt_mesh_gpc_status *rsp);
-
-
-int bt_mesh_gpc_cli_set_unack(struct bt_mesh_gpc_cli *cli,
-				struct bt_mesh_msg_ctx *ctx,
-				const struct bt_mesh_gpc_set *set);
-
 int bt_mesh_gpc_cli_adv_set(struct bt_mesh_gpc_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx,
-			  struct bt_mesh_gpc_adv_set *set,
-			  struct bt_mesh_gpc_status *rsp);
+			  struct bt_mesh_gpc_adv_set *set);
 
 int bt_mesh_gpc_cli_conn_set(struct bt_mesh_gpc_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx,
-			  struct bt_mesh_gpc_conn_set *set,
-			  struct bt_mesh_gpc_status *rsp);
+			  struct bt_mesh_gpc_conn_set *set);
 
 int bt_mesh_gpc_cli_adv_enable(struct bt_mesh_gpc_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx,
-			  enum bt_mesh_proxy_cli_adv_state state,
-			  struct bt_mesh_gpc_status *rsp);
+			  enum bt_mesh_proxy_cli_adv_state state);
 
 int bt_mesh_gpc_cli_link_init(struct bt_mesh_gpc_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx, uint8_t msg_cnt);

@@ -13,8 +13,7 @@
 static int32_t link_update_send(struct bt_mesh_gpc_srv *srv);
 static int net_id_adv_set(struct bt_mesh_gpc_srv *srv,
 			  uint16_t dst_addr,
-			  struct bt_mesh_gpc_adv_set *set,
-			  struct bt_mesh_gpc_status *rsp);
+			  struct bt_mesh_gpc_adv_set *set);
 static int32_t test_msg_send(struct bt_mesh_gpc_srv *srv, bool onoff);
 
 
@@ -192,7 +191,7 @@ static bool conn_link_handle(void)
 				};
 				bt_mesh_proxy_cli_adv_state_set(BT_MESH_PROXY_CLI_ADV_ENABLED);
 				bt_mesh_proxy_cli_node_id_connect((struct node_id_lookup *)&conn_set);
-				int error = net_id_adv_set(p_srv, p_srv->conn_list[idx].ctx.addr, &adv_set, NULL);
+				int error = net_id_adv_set(p_srv, p_srv->conn_list[idx].ctx.addr, &adv_set);
 				finished = false;
 				printk("Current idx: %d\n", idx);
 				idx = (idx + 1) % ARRAY_SIZE(p_srv->conn_list);
@@ -375,7 +374,6 @@ static void handle_test_msg(struct bt_mesh_model *model,
 	}
 
 	bool onoff = net_buf_simple_pull_u8(buf);
-	printk("LED\n");
 	dk_set_led(1, onoff);
 }
 
@@ -418,7 +416,6 @@ void gatt_connected_cb(struct bt_conn *conn,
 		entry->conn = conn;
 	}
 
-	// k_delayed_work_cancel(&p_srv->conn_entry_work);
 	printk("NODE: %d CONNECTED\n", addr_ctx->addr);
 }
 
@@ -503,7 +500,7 @@ static int bt_mesh_gpc_srv_settings_set(struct bt_mesh_model *model,
 static int bt_mesh_gpc_srv_start(struct bt_mesh_model *model)
 {
 
-	// bt_mesh_subnet_foreach(bt_mesh_proxy_identity_start);
+	bt_mesh_subnet_foreach(bt_mesh_proxy_identity_start);
 	k_delayed_work_submit(&p_srv->conn_entry_work, K_NO_WAIT);
 	return 0;
 }
@@ -557,8 +554,7 @@ static int32_t test_msg_send(struct bt_mesh_gpc_srv *srv, bool onoff)
 
 static int net_id_adv_set(struct bt_mesh_gpc_srv *srv,
 			  uint16_t dst_addr,
-			  struct bt_mesh_gpc_adv_set *set,
-			  struct bt_mesh_gpc_status *rsp)
+			  struct bt_mesh_gpc_adv_set *set)
 {
 	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GPC_OP_ADV_SET,
 				 BT_MESH_GPC_MSG_LEN_ADV_SET);

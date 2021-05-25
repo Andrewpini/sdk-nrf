@@ -61,13 +61,6 @@ struct link_data_entry {
 	struct link_data data[32];
 };
 
-struct bt_mesh_gpc_set {
-	/** State to set. */
-	bool on_off;
-	/** Transition parameters. */
-	const struct bt_mesh_model_transition *transition;
-};
-
 struct bt_mesh_gpc_adv_set {
 	bool on_off;
 	uint8_t net_id;
@@ -76,15 +69,6 @@ struct bt_mesh_gpc_adv_set {
 struct bt_mesh_gpc_conn_set {
 	uint16_t addr;
 	uint8_t net_id;
-};
-
-struct bt_mesh_gpc_status {
-	/** The present value of the Generic OnOff state. */
-	bool present_on_off;
-	/** The target value of the Generic OnOff state (optional). */
-	bool target_on_off;
-	/** Remaining time value in milliseconds. */
-	int32_t remaining_time;
 };
 
 #ifdef __cplusplus

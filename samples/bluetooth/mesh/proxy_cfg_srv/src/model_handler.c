@@ -39,27 +39,7 @@ static struct bt_mesh_health_srv health_srv = {
 	.cb = &health_srv_cb,
 };
 
-
-static void set(struct bt_mesh_gpc_srv *srv, struct bt_mesh_msg_ctx *ctx,
-		const struct bt_mesh_gpc_set *set,
-		struct bt_mesh_gpc_status *rsp)
-{
-	printk("Set\n");
-}
-
-static void get(struct bt_mesh_gpc_srv *srv, struct bt_mesh_msg_ctx *ctx,
-		struct bt_mesh_gpc_status *rsp)
-{
-	printk("Get\n");
-}
-
-struct bt_mesh_gpc_srv_handlers gpc_handler = {
-	.set = set,
-	.get = get,
-};
-
-static struct bt_mesh_gpc_srv gpc_srv =
-	BT_MESH_GPC_SRV_INIT(&gpc_handler);
+static struct bt_mesh_gpc_srv gpc_srv;
 
 BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 

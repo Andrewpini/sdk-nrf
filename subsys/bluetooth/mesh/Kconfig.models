@@ -43,13 +43,13 @@ config BT_MESH_ONOFF_CLI
 	help
 	  Enable mesh Generic OnOff Client model.
 
-config BT_MESH_GATT_CFG_SRV
+config BT_MESH_GPC_SRV
 	bool "Gatt Configuration Server"
 	select BT_MESH_NRF_MODELS
 	help
 	  Enable mesh Gatt Configuration Server model.
 
-config BT_MESH_GATT_CFG_CLI
+config BT_MESH_GPC_CLI
 	bool "Gatt Configuration Client"
 	select BT_MESH_NRF_MODELS
 	help

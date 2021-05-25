@@ -74,47 +74,47 @@ BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 /******************************************************************************/
 
 
-static void status_handler(struct bt_mesh_gatt_cfg_cli *cli,
+static void status_handler(struct bt_mesh_gpc_cli *cli,
 			   struct bt_mesh_msg_ctx *ctx,
-			   enum bt_mesh_gatt_cfg_status_type status,
+			   enum bt_mesh_gpc_status_type status,
 			   uint8_t err_code)
 {
 	char lladdr[124] = {0};
 	switch (status)
 	{
-	case BT_MESH_GATT_CFG_LINK_UPDATE_STARTED:
-		printk("BT_MESH_GATT_CFG_LINK_UPDATE_STARTED %d\n", ctx->addr);
+	case BT_MESH_GPC_LINK_UPDATE_STARTED:
+		printk("BT_MESH_GPC_LINK_UPDATE_STARTED %d\n", ctx->addr);
 		sprintf(lladdr,"%d-%d-", SHELL_PROXY_INTERFACE_LINK_UPDATE_STARTED, ctx->addr);
 		printk("%s\n", lladdr);
 		break;
 
-	case BT_MESH_GATT_CFG_LINK_UPDATE_ENDED:
-		printk("BT_MESH_GATT_CFG_LINK_UPDATE_ENDED %d\n", ctx->addr);
+	case BT_MESH_GPC_LINK_UPDATE_ENDED:
+		printk("BT_MESH_GPC_LINK_UPDATE_ENDED %d\n", ctx->addr);
 		sprintf(lladdr,"%d-%d-", SHELL_PROXY_INTERFACE_LINK_UPDATE_ENDED, ctx->addr);
 		printk("%s\n", lladdr);
 		break;
 
-	case BT_MESH_GATT_CFG_CONN_ADD:
-		printk("BT_MESH_GATT_CFG_CONN_ADD addr:%d, err_code:%d\n", ctx->addr, err_code);
+	case BT_MESH_GPC_CONN_ADD:
+		printk("BT_MESH_GPC_CONN_ADD addr:%d, err_code:%d\n", ctx->addr, err_code);
 		break;
 
-	case BT_MESH_GATT_CFG_CONN_RESET:
-		printk("BT_MESH_GATT_CFG_CONN_RESET addr:%d, err_code:%d\n", ctx->addr, err_code);
+	case BT_MESH_GPC_CONN_RESET:
+		printk("BT_MESH_GPC_CONN_RESET addr:%d, err_code:%d\n", ctx->addr, err_code);
 		break;
 	default:
 		break;
 	}
 }
 
-static struct bt_mesh_gatt_cfg_cli gatt_cfg_cli =
-	BT_MESH_GATT_CFG_CLI_INIT(&status_handler);
+static struct bt_mesh_gpc_cli gpc_cli =
+	BT_MESH_GPC_CLI_INIT(&status_handler);
 
 static struct bt_mesh_elem elements[] = {
 	BT_MESH_ELEM(1,
 		     BT_MESH_MODEL_LIST(
 			     BT_MESH_MODEL_CFG_SRV,
 			     BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
-			     BT_MESH_MODEL_GATT_CFG_CLI(&gatt_cfg_cli)),
+			     BT_MESH_MODEL_GPC_CLI(&gpc_cli)),
 		     BT_MESH_MODEL_NONE),
 };
 
@@ -128,7 +128,7 @@ static const struct bt_mesh_comp comp = {
 /******************************** Chat shell **********************************/
 /******************************************************************************/
 
-static int cmd_gatt_cfg(const struct shell *shell, size_t argc,
+static int cmd_gpc(const struct shell *shell, size_t argc,
 			       char *argv[])
 {
 	uint16_t addr;
@@ -147,7 +147,7 @@ static int cmd_gatt_cfg(const struct shell *shell, size_t argc,
 	/* Print own message to the chat. */
 	shell_print(shell, "<you>: *0x%04X* %d", addr, onoff);
 
-	struct bt_mesh_gatt_cfg_adv_set set = {
+	struct bt_mesh_gpc_adv_set set = {
 		.on_off = onoff,
 		.net_id = net_id,
 	};
@@ -158,8 +158,8 @@ static int cmd_gatt_cfg(const struct shell *shell, size_t argc,
 		.app_idx = 0,
 	};
 
-	// err = bt_mesh_gatt_cfg_cli_set(&gatt_cfg_cli, &ctx, &set, NULL);
-	err = bt_mesh_gatt_cfg_cli_adv_set(&gatt_cfg_cli, &ctx, &set, NULL);
+	// err = bt_mesh_gpc_cli_set(&gpc_cli, &ctx, &set, NULL);
+	err = bt_mesh_gpc_cli_adv_set(&gpc_cli, &ctx, &set, NULL);
 	if (err) {
 		LOG_WRN("Failed to publish message: %d", err);
 	}
@@ -186,7 +186,7 @@ static int cmd_gatt_conn_cfg(const struct shell *shell, size_t argc,
 	/* Print own message to the chat. */
 	shell_print(shell, "<you>: *0x%04X*", addr);
 
-	struct bt_mesh_gatt_cfg_conn_set set = {
+	struct bt_mesh_gpc_conn_set set = {
 		.addr = addr,
 		.net_id = net_id,
 	};
@@ -197,7 +197,7 @@ static int cmd_gatt_conn_cfg(const struct shell *shell, size_t argc,
 		.app_idx = 0,
 	};
 
-	err = bt_mesh_gatt_cfg_cli_conn_set(&gatt_cfg_cli, &ctx, &set, NULL);
+	err = bt_mesh_gpc_cli_conn_set(&gpc_cli, &ctx, &set, NULL);
 	if (err) {
 		LOG_WRN("Failed to publish message: %d", err);
 	}
@@ -229,7 +229,7 @@ static int cmd_gatt_adv_enable(const struct shell *shell, size_t argc,
 		.app_idx = 0,
 	};
 
-	err = bt_mesh_gatt_cfg_cli_adv_enable(&gatt_cfg_cli, &ctx, (enum bt_mesh_proxy_cli_adv_state)state, NULL);
+	err = bt_mesh_gpc_cli_adv_enable(&gpc_cli, &ctx, (enum bt_mesh_proxy_cli_adv_state)state, NULL);
 	if (err) {
 		LOG_WRN("Failed to publish message: %d", err);
 	}
@@ -258,7 +258,7 @@ static int cmd_gatt_link_init(const struct shell *shell, size_t argc,
 		.app_idx = 0,
 	};
 
-	int err = bt_mesh_gatt_cfg_cli_link_init(&gatt_cfg_cli, &ctx, msg_cnt);
+	int err = bt_mesh_gpc_cli_link_init(&gpc_cli, &ctx, msg_cnt);
 	if (err) {
 		LOG_WRN("Failed to publish message: %d", err);
 	}
@@ -285,7 +285,7 @@ static int cmd_gatt_link_fetch(const struct shell *shell, size_t argc,
 	};
 
 	struct link_data_entry entry = {0};
-	int err = bt_mesh_gatt_cfg_cli_link_fetch(&gatt_cfg_cli, &ctx, &entry);
+	int err = bt_mesh_gpc_cli_link_fetch(&gpc_cli, &ctx, &entry);
 	if (err) {
 		LOG_WRN("Failed to publish message: %d", err);
 	}
@@ -330,18 +330,18 @@ static int cmd_gatt_connect(const struct shell *shell, size_t argc,
 		.app_idx = 0,
 	};
 
-	struct bt_mesh_gatt_cfg_conn_set set_conn = {
+	struct bt_mesh_gpc_conn_set set_conn = {
 		.addr = srv_addr,
 		.net_id = 0,
 	};
-	err = bt_mesh_gatt_cfg_cli_conn_set(&gatt_cfg_cli, &ctx, &set_conn, NULL);
+	err = bt_mesh_gpc_cli_conn_set(&gpc_cli, &ctx, &set_conn, NULL);
 
-	struct bt_mesh_gatt_cfg_adv_set set = {
+	struct bt_mesh_gpc_adv_set set = {
 		.on_off = true,
 		.net_id = 0,
 	};
 	ctx.addr = srv_addr;
-	err = bt_mesh_gatt_cfg_cli_adv_set(&gatt_cfg_cli, &ctx, &set, NULL);
+	err = bt_mesh_gpc_cli_adv_set(&gpc_cli, &ctx, &set, NULL);
 
 	if (err) {
 		LOG_WRN("Failed to publish message: %d", err);
@@ -365,7 +365,7 @@ static int cmd_gatt_conn_reset(const struct shell *shell, size_t argc,
 		.app_idx = 0,
 	};
 
-	int err = bt_mesh_gatt_cfg_cli_conn_reset(&gatt_cfg_cli, &ctx);
+	int err = bt_mesh_gpc_cli_conn_reset(&gpc_cli, &ctx);
 	if (err) {
 		LOG_WRN("Failed to publish message: %d", err);
 	}
@@ -389,7 +389,7 @@ static int cmd_test_msg(const struct shell *shell, size_t argc,
 		.app_idx = 0,
 	};
 
-	int err = bt_mesh_gatt_cfg_cli_test_msg_init(&gatt_cfg_cli, &ctx, onoff);
+	int err = bt_mesh_gpc_cli_test_msg_init(&gpc_cli, &ctx, onoff);
 	if (err) {
 		LOG_WRN("Failed to publish message: %d", err);
 	}
@@ -400,7 +400,7 @@ static int cmd_test_msg(const struct shell *shell, size_t argc,
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	chat_cmds,
 	SHELL_CMD_ARG(adv_set, NULL, "Set the GATT config adv <addr> <onoff> <net_idx>",
-		      cmd_gatt_cfg, 4, 0),
+		      cmd_gpc, 4, 0),
 	SHELL_CMD_ARG(conn_set, NULL, "Set the GATT config <dst_addr> <addr> <net_idx>",
 		      cmd_gatt_conn_cfg, 4, 0),
 	SHELL_CMD_ARG(adv_enable, NULL, "Set the state for the advertiser <dst_addr> <onoff>",

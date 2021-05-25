@@ -40,26 +40,26 @@ static struct bt_mesh_health_srv health_srv = {
 };
 
 
-static void set(struct bt_mesh_gatt_cfg_srv *srv, struct bt_mesh_msg_ctx *ctx,
-		const struct bt_mesh_gatt_cfg_set *set,
-		struct bt_mesh_gatt_cfg_status *rsp)
+static void set(struct bt_mesh_gpc_srv *srv, struct bt_mesh_msg_ctx *ctx,
+		const struct bt_mesh_gpc_set *set,
+		struct bt_mesh_gpc_status *rsp)
 {
 	printk("Set\n");
 }
 
-static void get(struct bt_mesh_gatt_cfg_srv *srv, struct bt_mesh_msg_ctx *ctx,
-		struct bt_mesh_gatt_cfg_status *rsp)
+static void get(struct bt_mesh_gpc_srv *srv, struct bt_mesh_msg_ctx *ctx,
+		struct bt_mesh_gpc_status *rsp)
 {
 	printk("Get\n");
 }
 
-struct bt_mesh_gatt_cfg_srv_handlers gatt_cfg_handler = {
+struct bt_mesh_gpc_srv_handlers gpc_handler = {
 	.set = set,
 	.get = get,
 };
 
-static struct bt_mesh_gatt_cfg_srv gatt_cfg_srv =
-	BT_MESH_GATT_CFG_SRV_INIT(&gatt_cfg_handler);
+static struct bt_mesh_gpc_srv gpc_srv =
+	BT_MESH_GPC_SRV_INIT(&gpc_handler);
 
 BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 
@@ -70,9 +70,9 @@ static struct bt_mesh_elem elements[] = {
 		1, BT_MESH_MODEL_LIST(
 			BT_MESH_MODEL_CFG_SRV,
 			BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
-			BT_MESH_MODEL_GATT_CFG_SRV(&gatt_cfg_srv)),
+			BT_MESH_MODEL_GPC_SRV(&gpc_srv)),
 					     BT_MESH_MODEL_NONE),
-		// BT_MESH_MODEL_LIST(BT_MESH_MODEL_GATT_CFG_SRV(&gatt_cfg_srv))),
+		// BT_MESH_MODEL_LIST(BT_MESH_MODEL_GPC_SRV(&gpc_srv))),
 
 
 };

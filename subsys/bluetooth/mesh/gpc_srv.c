@@ -1,6 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
-#include <bluetooth/mesh/gatt_cfg_srv.h>
+#include <bluetooth/mesh/gpc_srv.h>
 #include "model_utils.h"
 #include "mesh/subnet.h"
 #include "mesh/access.h"
@@ -10,31 +10,31 @@
 #include <dk_buttons_and_leds.h>
 
 
-static int32_t link_update_send(struct bt_mesh_gatt_cfg_srv *srv);
-static int net_id_adv_set(struct bt_mesh_gatt_cfg_srv *srv,
+static int32_t link_update_send(struct bt_mesh_gpc_srv *srv);
+static int net_id_adv_set(struct bt_mesh_gpc_srv *srv,
 			  uint16_t dst_addr,
-			  struct bt_mesh_gatt_cfg_adv_set *set,
-			  struct bt_mesh_gatt_cfg_status *rsp);
-static int32_t test_msg_send(struct bt_mesh_gatt_cfg_srv *srv, bool onoff);
+			  struct bt_mesh_gpc_adv_set *set,
+			  struct bt_mesh_gpc_status *rsp);
+static int32_t test_msg_send(struct bt_mesh_gpc_srv *srv, bool onoff);
 
 
-struct bt_mesh_gatt_cfg_srv *p_srv;
+struct bt_mesh_gpc_srv *p_srv;
 
 /** Persistent storage handling */
-struct bt_mesh_gatt_cfg_srv_settings_data {
+struct bt_mesh_gpc_srv_settings_data {
 	uint8_t conn_list_idx;
-	struct bt_mesh_gatt_cfg_conn_set conns[8];
+	struct bt_mesh_gpc_conn_set conns[8];
 	enum bt_mesh_proxy_cli_adv_state adv_state;
 } __packed;
 
 
-static int store_state(struct bt_mesh_gatt_cfg_srv *srv)
+static int store_state(struct bt_mesh_gpc_srv *srv)
 {
 	if (!IS_ENABLED(CONFIG_BT_SETTINGS)) {
 		return 0;
 	}
 
-	struct bt_mesh_gatt_cfg_srv_settings_data data = {
+	struct bt_mesh_gpc_srv_settings_data data = {
 		.conn_list_idx = srv->conn_list_idx,
 		.adv_state = srv->adv_state,
 	};
@@ -47,7 +47,7 @@ static int store_state(struct bt_mesh_gatt_cfg_srv *srv)
 					&data, sizeof(data));
 }
 
-static void l_data_print(struct bt_mesh_gatt_cfg_srv *srv)
+static void l_data_print(struct bt_mesh_gpc_srv *srv)
 {
 	for (size_t i = 0; i < (srv->l_data_idx); i++)
 	{
@@ -57,21 +57,21 @@ static void l_data_print(struct bt_mesh_gatt_cfg_srv *srv)
 
 static void l_data_cb(struct k_work *work)
 {
-	struct bt_mesh_gatt_cfg_srv *srv =
-		CONTAINER_OF(work, struct bt_mesh_gatt_cfg_srv, l_data_work);
+	struct bt_mesh_gpc_srv *srv =
+		CONTAINER_OF(work, struct bt_mesh_gpc_srv, l_data_work);
 	if (srv->l_data_msg_cnt) {
 		link_update_send(srv);
 		srv->l_data_msg_cnt--;
 		k_delayed_work_submit(&srv->l_data_work, K_MSEC(200));
 	} else {
 		l_data_print(srv);
-		bt_mesh_gatt_cfg_srv_pub(srv, NULL,
-					 BT_MESH_GATT_CFG_LINK_UPDATE_ENDED,
-					 BT_MESH_GATT_CFG_ERR_SUCCESS);
+		bt_mesh_gpc_srv_pub(srv, NULL,
+					 BT_MESH_GPC_LINK_UPDATE_ENDED,
+					 BT_MESH_GPC_ERR_SUCCESS);
 	}
 }
 
-static void l_data_put(struct bt_mesh_gatt_cfg_srv *srv, uint16_t addr)
+static void l_data_put(struct bt_mesh_gpc_srv *srv, uint16_t addr)
 {
 	for (size_t i = 0; i < ARRAY_SIZE(srv->l_data); i++)
 	{
@@ -88,21 +88,21 @@ static void l_data_put(struct bt_mesh_gatt_cfg_srv *srv, uint16_t addr)
 }
 
 static void encode_status(struct net_buf_simple *buf,
-			  enum bt_mesh_gatt_cfg_status_type status,
+			  enum bt_mesh_gpc_status_type status,
 			  uint8_t err_code)
 {
-	bt_mesh_model_msg_init(buf, BT_MESH_GATT_CFG_OP_STATUS);
+	bt_mesh_model_msg_init(buf, BT_MESH_GPC_OP_STATUS);
 	net_buf_simple_add_u8(buf, status);
 	net_buf_simple_add_u8(buf, err_code);
 }
 
 static void rsp_status(struct bt_mesh_model *model,
 		       struct bt_mesh_msg_ctx *rx_ctx,
-		       enum bt_mesh_gatt_cfg_status_type status,
+		       enum bt_mesh_gpc_status_type status,
 		       uint8_t err_code)
 {
-	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_STATUS,
-				 BT_MESH_GATT_CFG_MSG_LEN_STATUS);
+	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GPC_OP_STATUS,
+				 BT_MESH_GPC_MSG_LEN_STATUS);
 	encode_status(&msg, status, err_code);
 
 	(void)bt_mesh_model_send(model, rx_ctx, &msg, NULL, NULL);
@@ -112,11 +112,11 @@ static void handle_node_id_adv_set(struct bt_mesh_model *model,
 			     struct bt_mesh_msg_ctx *ctx,
 			     struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_ADV_SET) {
+	if (buf->len != BT_MESH_GPC_MSG_LEN_ADV_SET) {
 		return;
 	}
 
-	struct bt_mesh_gatt_cfg_adv_set set;
+	struct bt_mesh_gpc_adv_set set;
 
 	uint8_t on_off = net_buf_simple_pull_u8(buf);
 	if (on_off > 1) {
@@ -139,8 +139,8 @@ static void handle_node_id_adv_set(struct bt_mesh_model *model,
 	       (set.on_off ? "On" : "OFF"), set.net_id);
 }
 
-static uint8_t conn_put(struct bt_mesh_gatt_cfg_srv *srv,
-		     struct bt_mesh_gatt_cfg_conn_set set)
+static uint8_t conn_put(struct bt_mesh_gpc_srv *srv,
+		     struct bt_mesh_gpc_conn_set set)
 {
 	for (size_t i = 0; i < ARRAY_SIZE(srv->conn_list); i++) {
 		if ((set.addr == srv->conn_list[i].ctx.addr) &&
@@ -159,7 +159,7 @@ static uint8_t conn_put(struct bt_mesh_gatt_cfg_srv *srv,
 	}
 }
 
-static struct bt_mesh_gatt_cfg_conn_entry *conn_get(
+static struct bt_mesh_gpc_conn_entry *conn_get(
 		     uint16_t addr, uint8_t net_id)
 {
 	for (size_t i = 0; i < ARRAY_SIZE(p_srv->conn_list); i++) {
@@ -182,11 +182,11 @@ static bool conn_link_handle(void)
 		{
 			if (!p_srv->conn_list[idx].is_active)
 			{
-				struct bt_mesh_gatt_cfg_conn_set conn_set = {
+				struct bt_mesh_gpc_conn_set conn_set = {
 					.addr = p_srv->conn_list[idx].ctx.addr,
 					.net_id = p_srv->conn_list[idx].ctx.net_id,
 				};
-				struct bt_mesh_gatt_cfg_adv_set adv_set = {
+				struct bt_mesh_gpc_adv_set adv_set = {
 					.on_off = true,
 					.net_id = p_srv->conn_list[idx].ctx.net_id,
 				};
@@ -210,8 +210,8 @@ static bool conn_link_handle(void)
 
 static void conn_entry_work_cb(struct k_work *work)
 {
-	struct bt_mesh_gatt_cfg_srv *srv =
-		CONTAINER_OF(work, struct bt_mesh_gatt_cfg_srv, conn_entry_work);
+	struct bt_mesh_gpc_srv *srv =
+		CONTAINER_OF(work, struct bt_mesh_gpc_srv, conn_entry_work);
 
 	bool res = conn_link_handle();
 	printk("Working: %d\n", res);
@@ -224,12 +224,12 @@ static void handle_conn_set(struct bt_mesh_model *model,
 			     struct bt_mesh_msg_ctx *ctx,
 			     struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_CONN_SET) {
+	if (buf->len != BT_MESH_GPC_MSG_LEN_CONN_SET) {
 		return;
 	}
 
-	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
-	struct bt_mesh_gatt_cfg_conn_set set;
+	struct bt_mesh_gpc_srv *srv = model->user_data;
+	struct bt_mesh_gpc_conn_set set;
 
 	set.addr = net_buf_simple_pull_le16(buf);
 	set.net_id = net_buf_simple_pull_u8(buf);
@@ -242,18 +242,18 @@ static void handle_conn_set(struct bt_mesh_model *model,
 
 	printk("Received a new connection request to node %d on net_id %d\n",
 	       set.addr, set.net_id);
-	rsp_status(model, ctx, BT_MESH_GATT_CFG_CONN_ADD, err);
+	rsp_status(model, ctx, BT_MESH_GPC_CONN_ADD, err);
 }
 
 static void handle_adv_enable(struct bt_mesh_model *model,
 			      struct bt_mesh_msg_ctx *ctx,
 			      struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_ADV_ENABLE) {
+	if (buf->len != BT_MESH_GPC_MSG_LEN_ADV_ENABLE) {
 		return;
 	}
 
-	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
+	struct bt_mesh_gpc_srv *srv = model->user_data;
 	srv->adv_state = net_buf_simple_pull_u8(buf);
 
 
@@ -267,11 +267,11 @@ static void handle_link_update(struct bt_mesh_model *model,
 			     struct bt_mesh_msg_ctx *ctx,
 			     struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_LINK_UPDATE) {
+	if (buf->len != BT_MESH_GPC_MSG_LEN_LINK_UPDATE) {
 		return;
 	}
 
-	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
+	struct bt_mesh_gpc_srv *srv = model->user_data;
 	uint16_t addr = net_buf_simple_pull_le16(buf);
 
 
@@ -287,11 +287,11 @@ static void handle_link_init(struct bt_mesh_model *model,
 			     struct bt_mesh_msg_ctx *ctx,
 			     struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_LINK_INIT) {
+	if (buf->len != BT_MESH_GPC_MSG_LEN_LINK_INIT) {
 		return;
 	}
 
-	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
+	struct bt_mesh_gpc_srv *srv = model->user_data;
 
 	memset(srv->l_data, 0, sizeof(srv->l_data));
 	srv->l_data_msg_cnt = net_buf_simple_pull_u8(buf);
@@ -300,25 +300,25 @@ static void handle_link_init(struct bt_mesh_model *model,
 
 	k_delayed_work_submit(&srv->l_data_work, K_MSEC(1000));
 
-	rsp_status(model, ctx, BT_MESH_GATT_CFG_LINK_UPDATE_STARTED,
-		   BT_MESH_GATT_CFG_ERR_SUCCESS);
+	rsp_status(model, ctx, BT_MESH_GPC_LINK_UPDATE_STARTED,
+		   BT_MESH_GPC_ERR_SUCCESS);
 }
 
 static void handle_link_fetch(struct bt_mesh_model *model,
 			      struct bt_mesh_msg_ctx *ctx,
 			      struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_LINK_FETCH) {
+	if (buf->len != BT_MESH_GPC_MSG_LEN_LINK_FETCH) {
 		return;
 	}
 
-	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
+	struct bt_mesh_gpc_srv *srv = model->user_data;
 
-	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP,
+	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GPC_OP_LINK_FETCH_RSP,
 				 2 + (srv->l_data_idx * sizeof(struct link_data)));
 
 
-	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_LINK_FETCH_RSP);
+	bt_mesh_model_msg_init(&msg, BT_MESH_GPC_OP_LINK_FETCH_RSP);
 
 	net_buf_simple_add_le16(&msg, bt_mesh_primary_addr());
 	for (size_t i = 0; i < srv->l_data_idx; i++)
@@ -334,11 +334,11 @@ static void handle_conn_list_reset(struct bt_mesh_model *model,
 			     struct bt_mesh_msg_ctx *ctx,
 			     struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_CONN_LIST_RESET) {
+	if (buf->len != BT_MESH_GPC_MSG_LEN_CONN_LIST_RESET) {
 		return;
 	}
 
-	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
+	struct bt_mesh_gpc_srv *srv = model->user_data;
 
 	for (size_t i = 0; i < ARRAY_SIZE(srv->conn_list); i++) {
 		if (srv->conn_list[i].is_active) {
@@ -350,18 +350,18 @@ static void handle_conn_list_reset(struct bt_mesh_model *model,
 	srv->conn_list_idx = 0;
 	int err = store_state(srv);
 	printk("Storing status: %d\n", err);
-	rsp_status(model, ctx, BT_MESH_GATT_CFG_CONN_RESET, err);
+	rsp_status(model, ctx, BT_MESH_GPC_CONN_RESET, err);
 }
 
 static void handle_test_msg_init(struct bt_mesh_model *model,
 			     struct bt_mesh_msg_ctx *ctx,
 			     struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_TEST_MSG_INIT) {
+	if (buf->len != BT_MESH_GPC_MSG_LEN_TEST_MSG_INIT) {
 		return;
 	}
 
-	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
+	struct bt_mesh_gpc_srv *srv = model->user_data;
 	bool onoff = net_buf_simple_pull_u8(buf);
 	test_msg_send(srv, onoff);
 }
@@ -370,7 +370,7 @@ static void handle_test_msg(struct bt_mesh_model *model,
 			     struct bt_mesh_msg_ctx *ctx,
 			     struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_GATT_CFG_MSG_LEN_TEST_MSG) {
+	if (buf->len != BT_MESH_GPC_MSG_LEN_TEST_MSG) {
 		return;
 	}
 
@@ -379,24 +379,24 @@ static void handle_test_msg(struct bt_mesh_model *model,
 	dk_set_led(1, onoff);
 }
 
-const struct bt_mesh_model_op _bt_mesh_gatt_cfg_srv_op[] = {
-	{ BT_MESH_GATT_CFG_OP_ADV_SET, BT_MESH_GATT_CFG_MSG_LEN_ADV_SET,
+const struct bt_mesh_model_op _bt_mesh_gpc_srv_op[] = {
+	{ BT_MESH_GPC_OP_ADV_SET, BT_MESH_GPC_MSG_LEN_ADV_SET,
 	  handle_node_id_adv_set },
-	{ BT_MESH_GATT_CFG_OP_CONN_SET, BT_MESH_GATT_CFG_MSG_LEN_CONN_SET,
+	{ BT_MESH_GPC_OP_CONN_SET, BT_MESH_GPC_MSG_LEN_CONN_SET,
 	  handle_conn_set },
-	{ BT_MESH_GATT_CFG_OP_ADV_ENABLE, BT_MESH_GATT_CFG_MSG_LEN_ADV_ENABLE,
+	{ BT_MESH_GPC_OP_ADV_ENABLE, BT_MESH_GPC_MSG_LEN_ADV_ENABLE,
 	  handle_adv_enable },
-	{ BT_MESH_GATT_CFG_OP_LINK_UPDATE, BT_MESH_GATT_CFG_MSG_LEN_LINK_UPDATE,
+	{ BT_MESH_GPC_OP_LINK_UPDATE, BT_MESH_GPC_MSG_LEN_LINK_UPDATE,
 	  handle_link_update },
-	{ BT_MESH_GATT_CFG_OP_LINK_INIT, BT_MESH_GATT_CFG_MSG_LEN_LINK_INIT,
+	{ BT_MESH_GPC_OP_LINK_INIT, BT_MESH_GPC_MSG_LEN_LINK_INIT,
 	  handle_link_init },
-	{ BT_MESH_GATT_CFG_OP_LINK_FETCH, BT_MESH_GATT_CFG_MSG_LEN_LINK_FETCH,
+	{ BT_MESH_GPC_OP_LINK_FETCH, BT_MESH_GPC_MSG_LEN_LINK_FETCH,
 	  handle_link_fetch },
-	{ BT_MESH_GATT_CFG_OP_CONN_LIST_RESET, BT_MESH_GATT_CFG_MSG_LEN_CONN_LIST_RESET,
+	{ BT_MESH_GPC_OP_CONN_LIST_RESET, BT_MESH_GPC_MSG_LEN_CONN_LIST_RESET,
 	  handle_conn_list_reset },
-	{ BT_MESH_GATT_CFG_OP_TEST_MSG_INIT, BT_MESH_GATT_CFG_MSG_LEN_TEST_MSG_INIT,
+	{ BT_MESH_GPC_OP_TEST_MSG_INIT, BT_MESH_GPC_MSG_LEN_TEST_MSG_INIT,
 	  handle_test_msg_init },
-	{ BT_MESH_GATT_CFG_OP_TEST_MSG, BT_MESH_GATT_CFG_MSG_LEN_TEST_MSG,
+	{ BT_MESH_GPC_OP_TEST_MSG, BT_MESH_GPC_MSG_LEN_TEST_MSG,
 	  handle_test_msg },
 	BT_MESH_MODEL_OP_END,
 };
@@ -410,7 +410,7 @@ void gatt_connected_cb(struct bt_conn *conn,
 		       struct node_id_lookup *addr_ctx, uint8_t reason)
 {
 
-	struct bt_mesh_gatt_cfg_conn_entry * entry;
+	struct bt_mesh_gpc_conn_entry * entry;
 	entry = conn_get(addr_ctx->addr, addr_ctx->net_idx);
 
 	if (entry) {
@@ -433,7 +433,7 @@ void gatt_disconnected_cb(struct bt_conn *conn,
 			  struct node_id_lookup *addr_ctx, uint8_t reason)
 {
 
-	struct bt_mesh_gatt_cfg_conn_entry * entry;
+	struct bt_mesh_gpc_conn_entry * entry;
 	entry = conn_get(addr_ctx->addr, addr_ctx->net_idx);
 
 	if (entry) {
@@ -445,9 +445,9 @@ void gatt_disconnected_cb(struct bt_conn *conn,
 	k_delayed_work_submit(&p_srv->conn_entry_work, K_NO_WAIT);
 }
 
-static int bt_mesh_gatt_cfg_srv_init(struct bt_mesh_model *model)
+static int bt_mesh_gpc_srv_init(struct bt_mesh_model *model)
 {
-	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
+	struct bt_mesh_gpc_srv *srv = model->user_data;
 
 	srv->model = model;
 	srv->pub.msg = &srv->pub_buf;
@@ -461,20 +461,20 @@ static int bt_mesh_gatt_cfg_srv_init(struct bt_mesh_model *model)
 	return 0;
 }
 
-static void bt_mesh_gatt_cfg_srv_reset(struct bt_mesh_model *model)
+static void bt_mesh_gpc_srv_reset(struct bt_mesh_model *model)
 {
 	net_buf_simple_reset(model->pub->msg);
 }
 
 #ifdef CONFIG_BT_SETTINGS
-static int bt_mesh_gatt_cfg_srv_settings_set(struct bt_mesh_model *model,
+static int bt_mesh_gpc_srv_settings_set(struct bt_mesh_model *model,
 					      const char *name, size_t len_rd,
 					      settings_read_cb read_cb,
 					      void *cb_arg)
 {
 
-	struct bt_mesh_gatt_cfg_srv *srv = model->user_data;
-	struct bt_mesh_gatt_cfg_srv_settings_data data;
+	struct bt_mesh_gpc_srv *srv = model->user_data;
+	struct bt_mesh_gpc_srv_settings_data data;
 	ssize_t result;
 
 	if (name) {
@@ -500,7 +500,7 @@ static int bt_mesh_gatt_cfg_srv_settings_set(struct bt_mesh_model *model,
 }
 #endif
 
-static int bt_mesh_gatt_cfg_srv_start(struct bt_mesh_model *model)
+static int bt_mesh_gpc_srv_start(struct bt_mesh_model *model)
 {
 
 	// bt_mesh_subnet_foreach(bt_mesh_proxy_identity_start);
@@ -508,31 +508,31 @@ static int bt_mesh_gatt_cfg_srv_start(struct bt_mesh_model *model)
 	return 0;
 }
 
-const struct bt_mesh_model_cb _bt_mesh_gatt_cfg_srv_cb = {
-	.init = bt_mesh_gatt_cfg_srv_init,
-	.reset = bt_mesh_gatt_cfg_srv_reset,
+const struct bt_mesh_model_cb _bt_mesh_gpc_srv_cb = {
+	.init = bt_mesh_gpc_srv_init,
+	.reset = bt_mesh_gpc_srv_reset,
 #ifdef CONFIG_BT_SETTINGS
-	.settings_set = bt_mesh_gatt_cfg_srv_settings_set,
-	.start = bt_mesh_gatt_cfg_srv_start,
+	.settings_set = bt_mesh_gpc_srv_settings_set,
+	.start = bt_mesh_gpc_srv_start,
 #endif
 };
 
-int32_t bt_mesh_gatt_cfg_srv_pub(struct bt_mesh_gatt_cfg_srv *srv,
+int32_t bt_mesh_gpc_srv_pub(struct bt_mesh_gpc_srv *srv,
 			    struct bt_mesh_msg_ctx *ctx,
-			    enum bt_mesh_gatt_cfg_status_type status,
+			    enum bt_mesh_gpc_status_type status,
 			    uint8_t err_code)
 {
-	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_STATUS,
-				 BT_MESH_GATT_CFG_MSG_LEN_STATUS);
+	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GPC_OP_STATUS,
+				 BT_MESH_GPC_MSG_LEN_STATUS);
 	encode_status(&msg, status, err_code);
 	return model_send(srv->model, ctx, &msg);
 }
 
-static int32_t link_update_send(struct bt_mesh_gatt_cfg_srv *srv)
+static int32_t link_update_send(struct bt_mesh_gpc_srv *srv)
 {
-	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_LINK_UPDATE,
-				 BT_MESH_GATT_CFG_MSG_LEN_LINK_UPDATE);
-	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_LINK_UPDATE);
+	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GPC_OP_LINK_UPDATE,
+				 BT_MESH_GPC_MSG_LEN_LINK_UPDATE);
+	bt_mesh_model_msg_init(&msg, BT_MESH_GPC_OP_LINK_UPDATE);
 	net_buf_simple_add_le16(&msg, bt_mesh_primary_addr());
 
 	struct bt_mesh_msg_ctx ctx = {
@@ -545,24 +545,24 @@ static int32_t link_update_send(struct bt_mesh_gatt_cfg_srv *srv)
 	return model_send(srv->model, &ctx, &msg);
 }
 
-static int32_t test_msg_send(struct bt_mesh_gatt_cfg_srv *srv, bool onoff)
+static int32_t test_msg_send(struct bt_mesh_gpc_srv *srv, bool onoff)
 {
-	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_TEST_MSG,
-				 BT_MESH_GATT_CFG_MSG_LEN_TEST_MSG);
-	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_TEST_MSG);
+	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GPC_OP_TEST_MSG,
+				 BT_MESH_GPC_MSG_LEN_TEST_MSG);
+	bt_mesh_model_msg_init(&msg, BT_MESH_GPC_OP_TEST_MSG);
 	net_buf_simple_add_u8(&msg, onoff);
 
 	return model_send(srv->model, NULL, &msg);
 }
 
-static int net_id_adv_set(struct bt_mesh_gatt_cfg_srv *srv,
+static int net_id_adv_set(struct bt_mesh_gpc_srv *srv,
 			  uint16_t dst_addr,
-			  struct bt_mesh_gatt_cfg_adv_set *set,
-			  struct bt_mesh_gatt_cfg_status *rsp)
+			  struct bt_mesh_gpc_adv_set *set,
+			  struct bt_mesh_gpc_status *rsp)
 {
-	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GATT_CFG_OP_ADV_SET,
-				 BT_MESH_GATT_CFG_MSG_LEN_ADV_SET);
-	bt_mesh_model_msg_init(&msg, BT_MESH_GATT_CFG_OP_ADV_SET);
+	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_GPC_OP_ADV_SET,
+				 BT_MESH_GPC_MSG_LEN_ADV_SET);
+	bt_mesh_model_msg_init(&msg, BT_MESH_GPC_OP_ADV_SET);
 
 	net_buf_simple_add_u8(&msg, set->on_off);
 	net_buf_simple_add_u8(&msg, set->net_id);
